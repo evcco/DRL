@@ -483,13 +483,25 @@ class Model_Decon(object):
         return u_mu, u_cov
 
     def interpret_confounders(self, u_embedding):
-        u_embedding_flat = u_embedding.numpy().flatten()
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=f"Interpret the following latent representation of confounders: {u_embedding_flat}",
-            max_tokens=150
-        )
-        print("Interpreted Confounders: ", response['choices'][0]['text'].strip())
+        """
+        Use OpenAI API to interpret the confounders based on their latent space embeddings.
+        """
+        with self.sess.as_default():
+            u_embedding_flat = u_embedding.eval().flatten()  # This evaluates the tensor to a NumPy array in TF 1.x
+
+        # Create the prompt for the OpenAI API
+        prompt = f"Interpret the following latent variables: {u_embedding_flat.tolist()}"
+        
+        try:
+            response = openai.Completion.create(
+                engine="text-davinci-003",
+                prompt=prompt,
+                max_tokens=150
+            )
+            return response.choices[0].text.strip()
+        except Exception as e:
+            print(f"Error during OpenAI API call: {e}")
+            return "Interpretation failed."
 
     def q_a_g_x(self, x):
         if self.opts['is_conv']:
@@ -572,7 +584,7 @@ class Model_Decon(object):
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        log_file = os.path.join(log_dir, 'mnist.log')
+        log_file = os.path.join(log_dir, 'LLM.log')
         
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_file, filemode='w')
         logger = logging.getLogger()

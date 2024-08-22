@@ -1,6 +1,4 @@
-#########################
-## Author: Chaochao Lu ##
-#########################
+
 from collections import OrderedDict # TOLEARN from ... import ... 的用法
 import tensorflow as tf
 
@@ -15,9 +13,9 @@ model_config = OrderedDict()
 
 model_config['work_dir'] = './training_results'
 model_config['data_dir'] = './dataset'
-model_config['training_data'] = './mnist_data/mnist_training_data.npz'
-model_config['validation_data'] = './mnist_data/mnist_validation_data.npz'
-model_config['testing_data'] = './mnist_data/mnist_testing_data.npz'
+model_config['training_data'] = './mnist_training_data_1.npz'
+model_config['validation_data'] = './mnist_validation_data_1.npz'
+model_config['testing_data'] = './mnist_testing_data_1.npz'
 model_config['model_checkpoint'] = './training_results/model_checkpoints/model_decon_uBernoulli'
 model_config['policy_checkpoint'] = './training_results/policy_checkpoints/policy_decon'
 
@@ -31,6 +29,7 @@ model_config['dataset'] = 'mnist'
 #model_config['dataset'] = 'dataset_name'
 model_config['seed'] = 123
 model_config['lr'] = 0.0001
+model_config['gmm_components'] = 10
 
 model_config['is_conv'] = True
 model_config['gated'] = True
@@ -193,3 +192,36 @@ model_config['qrgxa_net_outlayers'] = [[model_config['r_dim'], tf.nn.sigmoid],
 
 model_config['model_bn_is_training'] = True
 
+
+########################################################################################################################
+########################################## AC Configuration ############################################################
+########################################################################################################################
+
+model_config['replay_memory_capacity'] = int(1e5)
+model_config['tau'] = 1e-2
+model_config['gamma'] = 0.99
+model_config['l2_reg_critic'] = 1e-6
+model_config['lr_critic'] = 1e-3
+model_config['lr_decay'] = 1
+model_config['l2_reg_actor'] = 1e-6
+model_config['lr_actor'] = 1e-3
+model_config['dropout_rate'] = 0
+
+model_config['policy_net_layers'] = [300, 300]
+model_config['policy_net_outlayers'] = [[1, tf.nn.tanh],
+                                        [1, tf.nn.softplus]]
+model_config['value_net_layers'] = [300, 300]
+model_config['value_net_outlayers'] = [[1, None],
+                                       [1, tf.nn.softplus]]
+
+model_config['episode_num'] = 2000
+model_config['episode_start'] = 0
+model_config['save_every_episode'] = 100
+model_config['max_steps_in_episode'] = 200
+model_config['train_every'] = 1
+model_config['mini_batch_size'] = 128
+model_config['u_sample_size'] = 200
+
+model_config['final_reward'] = 0
+
+model_config['policy_test_episode_num'] = 100

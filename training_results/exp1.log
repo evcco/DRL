@@ -1,0 +1,3 @@
+2024-08-22 15:48:29,845 - WARNING - From C:\Users\aymen\OneDrive\Documents\GitHub\DRL\model_decon_scm\model_decon.py:263: conv2d (from tensorflow.python.layers.convolutional) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use keras.layers.conv2d instead.

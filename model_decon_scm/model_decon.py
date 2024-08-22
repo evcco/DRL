@@ -1,12 +1,14 @@
 import numpy as np
 import tensorflow as tf
+from utils import *
 import tensorflow_probability as tfp
 from sklearn.mixture import GaussianMixture
+from tensorflow.keras.layers import TimeDistributed, Conv2D
 import networkx as nx
 import os
 import logging
 import matplotlib.pyplot as plt
-
+import time 
 class Model_Decon(object):
 
     def __init__(self, sess, opts):
@@ -31,35 +33,60 @@ class Model_Decon(object):
         return z
 
     def p_x_g_z_u(self, z, u):
-        if len(z.get_shape().as_list()) > 2:
+        # Debug: Print the shape of z before any operations
+        print("Initial shape of z:", z.get_shape().as_list())
+
+        z_shape = z.get_shape().as_list()
+
+        if len(z_shape) == 5:  # If z has a time dimension, use TimeDistributed
+            # Ensure 'u' is compatible with z (expand dimensions if necessary)
+            if len(u.get_shape().as_list()) == 1:
+                u = tf.expand_dims(u, 1)
             u = tf.expand_dims(u, 1)
-            u = tf.tile(u, [1, z.get_shape().as_list()[1], 1])
+            u = tf.tile(u, [1, z_shape[1], 1])
 
-        z_fea = self.fc_net(z, self.opts['pxgz_net_layers'], self.opts['pxgz_net_outlayers'], 'pxgz_net')
-        u_fea = self.fc_net(u, self.opts['pxgu_net_layers'], self.opts['pxgu_net_outlayers'], 'pxgu_net')
+            # Debug: Print the shape of u after tiling
+            print("Shape of u after tiling:", u.get_shape().as_list())
 
-        if len(z.get_shape().as_list()) > 2:
-            zu_fea = tf.concat([z_fea, u_fea], 2)
-        else:
-            zu_fea = tf.concat([z_fea, u_fea], 1)
+            # Apply Conv2D across time steps using TimeDistributed
+            z_fea = TimeDistributed(Conv2D(filters=32, kernel_size=3, strides=1, padding='same', activation='relu'))(z)
 
-        if self.opts['is_conv']:
-            z_fea = self.fc_net(zu_fea, self.opts['pxgzu_prenet_layers'],
-                                self.opts['pxgzu_prenet_outlayers'], 'pxgz_prenet')
-            z_fea = tf.reshape(z_fea, z_fea.get_shape().as_list()[:-1] + [4, 4, 32])
+            # Debug: Print the shape after TimeDistributed Conv2D
+            print("Shape after TimeDistributed Conv2D:", z_fea.get_shape().as_list())
 
-            mu, sigma = self.decoder(z_fea, self.opts['pxgzu_in_shape'],
-                                     self.opts['pxgzu_out_shape'], 'pxgzu_conv_net')
+            # Process 'u' similarly with TimeDistributed Dense layers
+            u_fea = TimeDistributed(Dense(32, activation='relu'))(u)
 
-            mu = tf.reshape(mu, mu.get_shape().as_list()[:-3] + [-1])
-            sigma = tf.reshape(sigma, sigma.get_shape().as_list()[:-3] + [-1])
+            # Combine features from 'z' and 'u'
+            zu_fea = tf.concat([z_fea, u_fea], axis=-1)
 
-        else:
-            mu, sigma = self.fc_net(zu_fea, self.opts['pxgzu_net_layers'],
-                                    self.opts['pxgzu_net_outlayers'], 'pxgzu_net')
+            # Debug: Print the shape after concatenation
+            print("Shape after concatenation:", zu_fea.get_shape().as_list())
 
-        return mu, sigma
+            # Further processing, for example, flattening and fully connected layers
+            zu_fea = TimeDistributed(Flatten())(zu_fea)
+            mu = TimeDistributed(Dense(self.opts['x_dim'], activation='linear'))(zu_fea)
+            sigma = TimeDistributed(Dense(self.opts['x_dim'], activation='softplus'))(zu_fea)
 
+        else:  # If z has no time dimension, proceed with standard Conv2D
+            z_fea = Conv2D(filters=32, kernel_size=3, strides=1, padding='same', activation='relu')(z)
+
+            # Process 'u' similarly with Dense layers
+            u_fea = Dense(32, activation='relu')(u)
+
+            # Combine features from 'z' and 'u'
+            zu_fea = tf.concat([z_fea, u_fea], axis=-1)
+
+            # Further processing, for example, flattening and fully connected layers
+            zu_fea = Flatten()(zu_fea)
+            mu = Dense(self.opts['x_dim'], activation='linear')(zu_fea)
+            sigma = Dense(self.opts['x_dim'], activation='softplus')(zu_fea)
+
+        # Debug: Print the final shapes of mu and sigma
+        print("Final shape of mu:", mu.get_shape().as_list())
+        print("Final shape of sigma:", sigma.get_shape().as_list())
+
+        return mu, sigma  
     def p_a_g_z_u(self, z, u):
         if len(z.get_shape().as_list()) > 2:
             u = tf.expand_dims(u, 1)
@@ -459,7 +486,7 @@ class Model_Decon(object):
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        log_file = os.path.join(log_dir, 'mnist.log')
+        log_file = os.path.join(log_dir, 'exp1.log')
 
         # Configure logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_file, filemode='w')
@@ -476,8 +503,7 @@ class Model_Decon(object):
 
         loss_gt = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], None])
         loss_recons = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], None])
-
-        re_loss = self.recons_loss(self.opts['recons_cost'], loss_gt, loss_recons)
+        re_loss = recons_loss(self.opts['recons_cost'], loss_gt, loss_recons)
         nll, kl_dist, kl_dist_u = self.neg_elbo(x_seq, a_seq, r_seq, u_seq, anneal=self.opts['anneal'], mask=mask)
         x_recons, a_recons, r_recons = self.recons_xar_seq_g_xar_seq(x_seq, a_seq, r_seq, mask)
 
