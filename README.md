@@ -127,6 +127,20 @@ The following shows the reconstruction of the MNIST dataset using the deconfound
 
 ![MNIST](training_results\plots\result_plot_epoch_9_itr_287.png)
 
+## New Causal Inference Integration
+
+In addition to the existing DRL framework, this implementation now includes advanced causal inference techniques applied to the generated Structural Causal Model (SCM) of the latent variable `u`.
+
+### Causal Inference Workflow
+1. **Clustering `u`**: After training, the latent variable `u` is clustered into different components using a Gaussian Mixture Model (GMM).
+2. **SCM Generation**: A Structural Causal Model (SCM) is then generated to represent the causal relationships between these clusters.
+3. **Backdoor Adjustment**: The backdoor adjustment criterion is applied to this SCM to automatically prune unnecessary connections, ensuring that the model accurately captures the true causal relationships between clusters of `u`.
+4. **Visualization**: The generated SCM, showing the relationships between the clusters of `u`, is saved as an image. You can find this visualization in the following location:
+
+   ![SCM Clusters](training_results/scm_clusters.png)
+
+This process enhances the interpretability of the model by providing a clear view of the causal relationships within the clustered `u`, contributing to more robust and explainable reinforcement learning.
+
 
 ## References
 
