@@ -1,17 +1,15 @@
+
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
-import os
-import time
-import logging
-from sklearn.decomposition import PCA
-from sklearn.mixture import GaussianMixture
-import openai
-
 from utils import *
-
-# Set your OpenAI API key
-openai.api_key = os.getenv('OPENAI_API_KEY')
+import tensorflow_probability as tfp
+from sklearn.mixture import GaussianMixture
+from tensorflow.keras.layers import TimeDistributed, Conv2D
+import networkx as nx
+import os
+import logging
+import matplotlib.pyplot as plt
+import time 
 
 class Model_Decon(object):
 
@@ -28,6 +26,7 @@ class Model_Decon(object):
         self.u_x_list = []
         self.u_a_list = []
         self.u_r_list = []
+        self.u_clusters = None
 
 ########################################################################################################################
 ############################################# create generative model ##################################################
@@ -177,7 +176,6 @@ class Model_Decon(object):
 
         return z_current_mu, x_prev, a_prev, r_prev
 
-
     def gen_xar_seq_g_z(self, z_0):
         z_0_shape = z_0.get_shape().as_list()
         if len(z_0_shape) > 2:
@@ -194,7 +192,6 @@ class Model_Decon(object):
         self.clear_u()
 
         return tf.transpose(output_xar[1], [1, 0, 2])
-
 
     def recons_xar_seq_g_xar_seq(self, x_seq, a_seq, r_seq, mask):
         z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask)
@@ -223,6 +220,7 @@ class Model_Decon(object):
 ########################################################################################################################
 ############################################# create inference/recognition model #######################################
 ########################################################################################################################
+
     def lstm_cell(self, prev, current):
         h_prev = prev[0]
         c_prev = prev[1]
@@ -259,7 +257,7 @@ class Model_Decon(object):
         h = tf.multiply(h_new, mask) + tf.multiply(1 - mask, h_prev)
 
         return h, c
-
+    
     def lstm_net(self, lstm_input, suffix, mask=None):
         lstm_input = tf.transpose(lstm_input, [1, 0, 2])
         lstm_input_shape = lstm_input.get_shape().as_list()
@@ -293,7 +291,7 @@ class Model_Decon(object):
                 self.lstm_cell,
                 elements,
                 initializer=(tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]),
-                             tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]))
+                            tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]))
             )
 
             lstm_output = output_backward[0]
@@ -315,12 +313,12 @@ class Model_Decon(object):
                 self.lstm_cell,
                 elements,
                 initializer=(tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]),
-                             tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]))
+                            tf.zeros([self.opts['batch_size'], self.opts['lstm_dim']]))
             )
 
             lstm_output = output_forward[0]
 
-        return lstm_dropout(lstm_output, self.opts['lstm_dropout_prob'])
+        return lstm_dropout(lstm_output, self.opts['lstm_dropout_prob'])    
 
     def st_approx(self, prev, current):
         z_prev = prev[0]
@@ -329,21 +327,22 @@ class Model_Decon(object):
 
         with tf.variable_scope('lstm_st_approx', reuse=tf.AUTO_REUSE):
             w_st_z = tf.get_variable('w_st_z', [self.opts['z_dim'], self.opts['lstm_dim']], tf.float32,
-                                     initializer=tf.contrib.layers.xavier_initializer())
+                                    initializer=tf.contrib.layers.xavier_initializer())
             b_st_z = tf.get_variable('b_st_z', [self.opts['lstm_dim']], tf.float32,
-                                     initializer=tf.constant_initializer(self.opts['init_bias']))
+                                    initializer=tf.constant_initializer(self.opts['init_bias']))
             w_st_a = tf.get_variable('w_st_a', [self.opts['lstm_dim'], self.opts['lstm_dim']], tf.float32,
-                                     initializer=tf.contrib.layers.xavier_initializer())
+                                    initializer=tf.contrib.layers.xavier_initializer())
             b_st_a = tf.get_variable('b_st_a', [self.opts['lstm_dim']], tf.float32,
-                                     initializer=tf.constant_initializer(self.opts['init_bias']))
+                                    initializer=tf.constant_initializer(self.opts['init_bias']))
             w_st_mu = tf.get_variable('w_st_mu', [self.opts['lstm_dim'], self.opts['z_dim']], tf.float32,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                    initializer=tf.contrib.layers.xavier_initializer())
             b_st_mu = tf.get_variable('b_st_mu', [self.opts['z_dim']], tf.float32,
-                                      initializer=tf.constant_initializer(self.opts['init_bias']))
+                                    initializer=tf.constant_initializer(self.opts['init_bias']))
             w_st_cov = tf.get_variable('w_st_cov', [self.opts['lstm_dim'], self.opts['z_dim']], tf.float32,
-                                       initializer=tf.contrib.layers.xavier_initializer())
+                                    initializer=tf.contrib.layers.xavier_initializer())
             b_st_cov = tf.get_variable('b_st_cov', [self.opts['z_dim']], tf.float32,
-                                       initializer=tf.constant_initializer(self.opts['init_bias']))
+                                    initializer=tf.constant_initializer(self.opts['init_bias']))
+
         h_next = tf.tanh(tf.matmul(z_prev, w_st_z) + b_st_z + tf.matmul(a_prev, w_st_a) + b_st_a)
         h_combined = 0.5 * (h_current + h_next)
         mu = tf.matmul(h_combined, w_st_mu) + b_st_mu
@@ -465,6 +464,11 @@ class Model_Decon(object):
 
         h_trans = tf.reshape(h, [self.opts['batch_size'], -1])
 
+        u_mu, u_cov = self.cluster_confounders(h_trans)
+
+        return u_mu, u_cov
+
+    def cluster_confounders(self, h_trans):
         gmm = tfp.distributions.MixtureSameFamily(
             mixture_distribution=tfp.distributions.Categorical(
                 logits=tf.zeros([self.opts['batch_size'], self.opts['gmm_components']])
@@ -474,34 +478,24 @@ class Model_Decon(object):
                 scale_diag=tf.ones([self.opts['batch_size'], self.opts['gmm_components'], self.opts['u_dim']])
             )
         )
-        u_mu = gmm.mean()
-        u_cov = gmm.variance()
+        u_clusters = gmm.sample()
+        self.u_clusters = u_clusters
 
-        # Generate interpretations of the confounders using an LLM
-        self.interpret_confounders(h_trans)
+        # Create SCM using u_clusters
+        scm_graph = nx.DiGraph()
+        for i in range(self.opts['gmm_components']):
+            for j in range(i + 1, self.opts['gmm_components']):
+                scm_graph.add_edge(f'u_{i}', f'u_{j}')
 
-        return u_mu, u_cov
+        # Save the SCM graph for visualization
+        plt.figure(figsize=(8, 6))
+        pos = nx.spring_layout(scm_graph)
+        nx.draw(scm_graph, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=2000)
+        plt.title("SCM between GMM clusters")
+        plt.savefig(os.path.join(self.opts['work_dir'], 'scm_clusters.png'))
+        plt.close()
 
-    def interpret_confounders(self, u_embedding):
-        """
-        Use OpenAI API to interpret the confounders based on their latent space embeddings.
-        """
-        with self.sess.as_default():
-            u_embedding_flat = u_embedding.eval().flatten()  # This evaluates the tensor to a NumPy array in TF 1.x
-
-        # Create the prompt for the OpenAI API
-        prompt = f"Interpret the following latent variables: {u_embedding_flat.tolist()}"
-        
-        try:
-            response = openai.Completion.create(
-                engine="text-davinci-003",
-                prompt=prompt,
-                max_tokens=150
-            )
-            return response.choices[0].text.strip()
-        except Exception as e:
-            print(f"Error during OpenAI API call: {e}")
-            return "Interpretation failed."
+        return gmm.mean(), gmm.variance()
 
     def q_a_g_x(self, x):
         if self.opts['is_conv']:
@@ -542,6 +536,7 @@ class Model_Decon(object):
 ########################################################################################################################
 ############################################# create neg_elbo ##########################################################
 ########################################################################################################################
+
     def neg_elbo(self, x_seq, a_seq, r_seq, u_seq, anneal=1, mask=None):
         z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask)
 
@@ -579,12 +574,13 @@ class Model_Decon(object):
 ########################################################################################################################
 ############################################# train the model ##########################################################
 ########################################################################################################################
+
     def train_model(self, data):
         log_dir = os.path.join(self.opts['work_dir'])
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        log_file = os.path.join(log_dir, 'LLM.log')
+        log_file = os.path.join(log_dir, 'mnist.log')
         
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_file, filemode='w')
         logger = logging.getLogger()
@@ -657,3 +653,4 @@ class Model_Decon(object):
                     epoch, itr, nll_tr, x_tr_loss, a_tr_loss, r_tr_loss, elapsed_time))
 
         self.saver.save(self.sess, os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'), global_step=counter)
+
