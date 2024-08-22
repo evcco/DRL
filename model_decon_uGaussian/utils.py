@@ -345,8 +345,8 @@ def save_mnist_plots(opts, x_gt_tr, x_gt_te, x_recons_tr, x_recons_te, train_nll
     x_seq_sample = np.reshape(x_seq_sample, [opts['batch_size'], opts['nsteps'], opts['mnist_dim'], opts['mnist_dim']])
 
     # maximum of sample_num is batch_size
-    for i in xrange(opts['sample_num']):
-        for j in xrange(opts['nsteps']):
+    for i in range(opts['sample_num']):
+        for j in range(opts['nsteps']):
             sample_gt_tr.append(x_gt_tr[i][j])
             sample_rc_tr.append(x_recons_tr[i][j])
             sample_gt_te.append(x_gt_te[i][j])

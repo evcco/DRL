@@ -69,7 +69,7 @@ def plot_metrics(df, save_path):
     plt.show()
 
 # Path to the log file
-log_file_path = 'C:\\Users\\aymen\\OneDrive\\Documents\\GitHub\\DRL-1\\training_results\\mnist.log'
+log_file_path = 'C:\\Users\\aymen\\OneDrive\\Documents\\GitHub\\DRL-1\\training_results\\trainingGaussian.log'
 
 # Parse the log file
 df = parse_log_file(log_file_path)
@@ -78,7 +78,7 @@ df = parse_log_file(log_file_path)
 save_dir = 'C:\\Users\\aymen\\OneDrive\\Documents\\GitHub\\DRL-1\\plots'
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
-save_path = os.path.join(save_dir, 'mnist_metrics_model_decon_uBernoulli.png')
+save_path = os.path.join(save_dir, 'mnist_metrics_model_decon_uGaussian.png')
 
 # Plot the metrics
 plot_metrics(df, save_path)

@@ -15,9 +15,9 @@ model_config = OrderedDict()
 
 model_config['work_dir'] = './training_results'
 model_config['data_dir'] = './dataset'
-model_config['training_data'] = './mnist_training_data.npz'
-model_config['validation_data'] = './mnist_validation_data.npz'
-model_config['testing_data'] = './mnist_testing_data.npz'
+model_config['training_data'] = './mnist_training_data_1.npz'
+model_config['validation_data'] = './mnist_validation_data_1.npz'
+model_config['testing_data'] = './mnist_testing_data_1.npz'
 model_config['model_checkpoint'] = './training_results/model_checkpoints/model_decon_uBernoulli'
 model_config['policy_checkpoint'] = './training_results/policy_checkpoints/policy_decon'
 

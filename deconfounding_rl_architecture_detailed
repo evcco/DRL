@@ -1,0 +1,30 @@
+digraph {
+	x_seq [label="x_seq (Input)"]
+	a_seq [label="a_seq (Input)"]
+	r_seq [label="r_seq (Input)"]
+	encoder_1 [label="FC(512) → Conv(7x7, 32)"]
+	encoder_2 [label="Conv(14x14, 16) → Conv(28x28, 1)"]
+	encoder_3 [label="FC(784) → {sigmoid, softplus}"]
+	decoder_1 [label="FC(100) → FC(200)"]
+	decoder_2 [label="FC(1) → {tanh, softplus}"]
+	prior_1 [label="FC(100) → FC(100)"]
+	prior_2 [label="FC(1) → {sigmoid, softplus}"]
+	policy_1 [label="FC(100) → FC(50) → {None, softplus}"]
+	policy_2 [label="Conv(5x5, 16) → Conv(5x5, 32)"]
+	policy_3 [label="Conv(5x5, 32) → FC(100) → LSTM(100x5) → FC(1) → {None, softplus}"]
+	x_seq -> encoder_1
+	encoder_1 -> encoder_2
+	encoder_2 -> encoder_3
+	decoder_1 -> decoder_2
+	prior_1 -> prior_2
+	policy_1 -> policy_2
+	policy_2 -> policy_3
+	actor_1 [label="Conv(5x5, 16) → Conv(5x5, 32)"]
+	actor_2 [label="Conv(5x5, 32) → FC(100) → LSTM(100x5) → FC(50) → {None, softplus}"]
+	critic_1 [label="Conv(5x5, 16) → Conv(5x5, 32) → Conv(5x5, 32)"]
+	critic_2 [label="FC(1) → {tanh, softplus}"]
+	q_value [label="Conv(5x5, 32) → FC(100) → LSTM(100x5) → FC(1) → {sigmoid, softplus}"]
+	actor_1 -> actor_2
+	critic_1 -> critic_2
+	actor_2 -> q_value
+}

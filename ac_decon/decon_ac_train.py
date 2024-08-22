@@ -40,12 +40,12 @@ class AC_Decon(object):
         self.z_init = z_mu_init
 
         # Case 1: u has a standard Gaussian prior
-        # self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
-        #                                0., 1., dtype=tf.float32)
+        self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
+                                       0., 1., dtype=tf.float32)
 
         # Case 2: u has a Bernoulli prior with p=0.5
-        self.u_init = tf.to_float(tf.random_uniform((self.opts['u_sample_size'], self.opts['batch_size'],
-                                                     self.opts['u_dim']), 0., 1., dtype=tf.float32) < 0.5)
+        #self.u_init = tf.to_float(tf.random_uniform((self.opts['u_sample_size'], self.opts['batch_size'],
+         #                                            self.opts['u_dim']), 0., 1., dtype=tf.float32) < 0.5)
 
         # compute z_next given z_current and a_current
         self.z_mu_next, z_cov_next = self.model.p_z_g_z_a(self.z, self.a)
@@ -157,13 +157,14 @@ class AC_Decon(object):
     ####################################################################################################################
     ################################################ functions related to env ##########################################
     ####################################################################################################################
+   
 
     def create_env(self):
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver(self.model_all_vars)
 
         # Define the default checkpoint path
-        default_checkpoint_path = "./model_decon_uBernoulli"  # Adjust this path as necessary
+        default_checkpoint_path = "./model_decon_uGaussian"  # Adjust this path as necessary
 
         # Get the checkpoint path from opts or use the default
         checkpoint_path = self.opts.get('model_checkpoint', default_checkpoint_path)
@@ -239,6 +240,12 @@ class AC_Decon(object):
 
     def sample_from_memory(self, batch_size):
         return random.sample(self.replay_memory, batch_size)
+    def calculate_optimal_action_probability(self, z):
+        # Assuming the optimal action is determined by the highest probability action from the policy network
+        action_mu, action_sigma = self.actor_net(z, reuse=True, is_training=False, trainable=False)
+        action_distribution = tf.distributions.Normal(loc=action_mu, scale=action_sigma)
+        action_prob = self.sess.run(action_distribution.prob(action_mu))
+        return action_prob
 
     ####################################################################################################################
     ################################################ training ##########################################################
@@ -325,7 +332,7 @@ class AC_Decon(object):
 
                 total_episode += 1
 
-                print('Episode: {:d}, Steps: {:d}, Reward: {:f}'.format(episode, steps_in_episode, total_reward))
+                print('Episode: {:d}, Steps in Episode: {:d}, Total Reward: {:f}'.format(episode, steps_in_episode, total_reward))
 
                 reward_que.append(total_reward)
                 reward_list.append(np.mean(reward_que))

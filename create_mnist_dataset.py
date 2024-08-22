@@ -12,7 +12,7 @@ def create_mnist_datasets():
     a_dim = 1  # Dummy action dimension
     r_dim = 1  # Dummy reward dimension
     mask_dim = 1
-    u_dim = 1  # Dummy rich dimension
+    u_dim = 2  # Updated to 2 to match the model's expectation
 
     def flatten_image(image):
         return image.flatten()
@@ -40,7 +40,7 @@ def create_mnist_datasets():
                 ep_actions.append([action])
                 ep_rewards.append([reward])
                 ep_masks.append([1.0])
-                ep_rich.append([1.0])  # Dummy value for rich
+                ep_rich.append([np.random.randint(0, 2), np.random.randint(0, 2)])  # Generate two random Bernoulli values for rich
 
             states.append(ep_states)
             actions.append(ep_actions)

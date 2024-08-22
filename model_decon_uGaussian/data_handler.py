@@ -17,16 +17,20 @@ class DataHandler(object):
         self.a_validation = None
         self.r_validation = None
         self.mask_validation = None
+        self.rich_validation = None  # Add rich_train attribute
+
         self.x_test = None
         self.a_test = None
         self.r_test = None
         self.mask_test = None
+        self.rich_test = None
+        self.rich_train = None  # Add rich_train attribute
         self.train_r_max = None
         self.train_r_min = None
         self.load_data(opts)
 
     def load_data(self, opts):
-        if opts['dataset'] == 'dataset_name':
+        if opts['dataset'] == 'mnist':
             self.load_dataset(opts)
         else:
             logging.error(opts['dataset'] + ' cannot be found.')
@@ -37,13 +41,16 @@ class DataHandler(object):
         self.x_train = mnist_train['x_train']
         self.a_train = mnist_train['a_train']
         self.r_train = mnist_train['r_train']
+        self.rich_train = mnist_train['rich_train']
         self.mask_train = mnist_train['mask_train']
 
         mnist_validation = np.load(opts['validation_data'])
         self.x_validation = mnist_validation['x_validation']
         self.a_validation = mnist_validation['a_validation']
         self.r_validation = mnist_validation['r_validation']
+        
         self.mask_validation = mnist_validation['mask_validation']
+        self.rich_validation = mnist_validation['rich_validation']
 
         mnist_test = np.load(opts['testing_data'])
         self.x_test = mnist_test['x_test']

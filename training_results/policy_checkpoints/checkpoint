@@ -1,5 +1,3 @@
-model_checkpoint_path: "policy_vanilla-199"
-all_model_checkpoint_paths: "policy_vanilla-49"
-all_model_checkpoint_paths: "policy_vanilla-99"
-all_model_checkpoint_paths: "policy_vanilla-149"
-all_model_checkpoint_paths: "policy_vanilla-199"
+model_checkpoint_path: "policy_decon-200"
+all_model_checkpoint_paths: "policy_decon-100"
+all_model_checkpoint_paths: "policy_decon-200"

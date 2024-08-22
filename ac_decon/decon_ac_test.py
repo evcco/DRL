@@ -40,12 +40,12 @@ class AC_Decon(object):
         self.z_init = z_mu_init
 
         # Case 1: u has a standard Gaussian prior
-        # self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
-        #                                0., 1., dtype=tf.float32)
+        self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
+                                       0., 1., dtype=tf.float32)
 
         # Case 2: u has a Bernoulli prior with p=0.5
-        self.u_init = tf.to_float(tf.random_uniform((self.opts['u_sample_size'], self.opts['batch_size'],
-                                                     self.opts['u_dim']), 0., 1., dtype=tf.float32) < 0.5)
+       # self.u_init = tf.to_float(tf.random_uniform((self.opts['u_sample_size'], self.opts['batch_size'],
+        #                                             self.opts['u_dim']), 0., 1., dtype=tf.float32) < 0.5)
 
         # compute z_next given z_current and a_current
         self.z_mu_next, z_cov_next = self.model.p_z_g_z_a(self.z, self.a)
@@ -159,8 +159,23 @@ class AC_Decon(object):
 
     def create_env(self):
         self.sess.run(tf.global_variables_initializer())
-        self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, self.opts['policy_checkpoint'])
+        self.saver = tf.train.Saver(self.model_all_vars)
+
+        # Define the default checkpoint path
+        default_checkpoint_path = "./model_decon_uGaussian"  # Adjust this path as necessary
+
+        # Get the checkpoint path from opts or use the default
+        checkpoint_path = self.opts.get('model_checkpoint', default_checkpoint_path)
+        
+        # Check if checkpoint_path is not None and exists
+        if checkpoint_path and os.path.exists(checkpoint_path + ".index"):
+            self.saver.restore(self.sess, checkpoint_path)
+            print(f"Model restored from checkpoint: {checkpoint_path}")
+        else:
+            print(f"No valid checkpoint found at {checkpoint_path}. Initializing variables.")
+        
+        # Reinitialize the saver to keep only a maximum of 50 checkpoints
+        self.saver = tf.train.Saver(max_to_keep=50)
 
 
     def compute_z_init(self, x, a, r):

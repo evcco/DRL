@@ -113,9 +113,20 @@ The plots generated during training will be saved in the `plots` directory with 
 
 ![MNIST](plots/mnist_metrics_model_decon_uBernoulli.png)
 
+and Model_Decon_Gaussian:
+
+![MNIST](plots/mnist_metrics_model_decon_uGaussian.png)
+
 The following is the rewards per episode for each for Vanilla AC Networks vs AC Networks with Deconfounding Model.
 
-![COMP](training_results\performance_comparison.png)
+![MNIST](training_results\performance_comparison.png)
+
+
+The following shows the reconstruction of the MNIST dataset using the deconfounded model:
+
+
+![MNIST](training_results\plots\result_plot_epoch_9_itr_287.png)
+
 
 ## References
 

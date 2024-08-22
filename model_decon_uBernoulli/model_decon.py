@@ -642,7 +642,7 @@ class Model_Decon(object):
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        log_file = os.path.join(log_dir, 'mnist.log')
+        log_file = os.path.join(log_dir, 'traininguBernoulli.log')
         
         # Configure logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_file, filemode='w')
