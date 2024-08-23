@@ -1,4 +1,3 @@
-
 import numpy as np
 import tensorflow as tf
 from utils import *
@@ -193,14 +192,14 @@ class Model_Decon(object):
 
         return tf.transpose(output_xar[1], [1, 0, 2])
 
-    def recons_xar_seq_g_xar_seq(self, x_seq, a_seq, r_seq, mask):
-        z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask)
+    def recons_xar_seq_g_xar_seq(self, x_seq, a_seq, r_seq, mask, data):
+        z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask, data)
 
         eps = tf.random_normal((self.opts['batch_size'], self.opts['nsteps'], self.opts['z_dim']),
                                0., 1., dtype=tf.float32)
         z_q_samples = mu_q + tf.multiply(eps, tf.sqrt(1e-8 + cov_q))
 
-        mu_u, cov_u = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask)
+        mu_u, cov_u = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask, data)
 
         mu_pxgz, cov_pxgz = self.p_x_g_z_u(z_q_samples, mu_u)
         mu_pagz, cov_pagz = self.p_a_g_z_u(z_q_samples, mu_u)
@@ -208,12 +207,12 @@ class Model_Decon(object):
 
         return mu_pxgz, mu_pagz, mu_prgza
 
-    def gen_z_g_x(self, x):
+    def gen_z_g_x(self, x, data):
         a, _ = self.q_a_g_x(x)
         r, _ = self.q_r_g_x_a(x, a)
-        self.u, _ = self.q_u_g_x_a_r(x, a, r)
+        self.u, _ = self.q_u_g_x_a_r(x, a, r, data=data)
 
-        _, z, _ = self.q_z_g_z_x_a_r(x, a, r)
+        _, z, _ = self.q_z_g_z_x_a_r(x, a, r, data=data)
 
         return z
 
@@ -353,7 +352,7 @@ class Model_Decon(object):
 
         return z, mu, cov
 
-    def q_z_g_z_x_a_r(self, x_seq, a_seq, r_seq, mask=None):
+    def q_z_g_z_x_a_r(self, x_seq, a_seq, r_seq, mask=None, data=None):
         x_seq_dim = 3
         if len(x_seq.get_shape().as_list()) == 2:
             x_seq = tf.expand_dims(x_seq, 1)
@@ -422,7 +421,7 @@ class Model_Decon(object):
 
         return z, mu, cov
 
-    def q_u_g_x_a_r(self, x_seq, a_seq, r_seq, mask=None):
+    def q_u_g_x_a_r(self, x_seq, a_seq, r_seq, mask=None, data=None):
         x_seq_dim = 3
         if len(x_seq.get_shape().as_list()) == 2:
             x_seq = tf.expand_dims(x_seq, 1)
@@ -464,11 +463,11 @@ class Model_Decon(object):
 
         h_trans = tf.reshape(h, [self.opts['batch_size'], -1])
 
-        u_mu, u_cov = self.cluster_confounders(h_trans)
+        u_mu, u_cov = self.cluster_confounders(h_trans, data=data)
 
         return u_mu, u_cov
 
-    def cluster_confounders(self, h_trans):
+    def cluster_confounders(self, h_trans, data):
         gmm = tfp.distributions.MixtureSameFamily(
             mixture_distribution=tfp.distributions.Categorical(
                 logits=tf.zeros([self.opts['batch_size'], self.opts['gmm_components']])
@@ -487,15 +486,73 @@ class Model_Decon(object):
             for j in range(i + 1, self.opts['gmm_components']):
                 scm_graph.add_edge(f'u_{i}', f'u_{j}')
 
-        # Save the SCM graph for visualization
+        # Prune clusters based on the SCM and causal inference techniques
+        pruned_u_clusters = self.prune_u_clusters(scm_graph, u_clusters, data)
+
+        # Save the pruned SCM graph for visualization
         plt.figure(figsize=(8, 6))
         pos = nx.spring_layout(scm_graph)
         nx.draw(scm_graph, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=2000)
-        plt.title("SCM between GMM clusters")
-        plt.savefig(os.path.join(self.opts['work_dir'], 'scm_clusters.png'))
+        plt.title("Pruned SCM between GMM clusters")
+        plt.savefig(os.path.join(self.opts['work_dir'], 'pruned_scm_clusters.png'))
         plt.close()
 
-        return gmm.mean(), gmm.variance()
+        return pruned_u_clusters, gmm.variance()
+
+    def prune_u_clusters(self, scm_graph, u_clusters, data):
+        """
+        Prunes unnecessary U clusters based on the SCM and the causal inference tests.
+        
+        Parameters:
+        - scm_graph: The SCM graph representing relationships between U clusters.
+        - u_clusters: The original U clusters obtained from GMM.
+        - data: The observational data used to infer causal relationships.
+        
+        Returns:
+        - pruned_u_clusters: The U clusters after pruning.
+        """
+        adjacency_matrix = nx.to_numpy_array(scm_graph)
+        pruned_clusters = []
+
+        for i in range(u_clusters.shape[1]):
+            if not self.is_prunable(i, adjacency_matrix, u_clusters):
+                pruned_clusters.append(u_clusters[:, i])
+
+        # Combine the pruned clusters back into a tensor
+        if pruned_clusters:
+            pruned_u_clusters = tf.stack(pruned_clusters, axis=1)
+        else:
+            pruned_u_clusters = u_clusters  # If no clusters were pruned, return the original clusters
+
+        return pruned_u_clusters
+
+    def is_prunable(self, node_index, adjacency_matrix, u_data):
+        """
+        Determines if a cluster (node) in the SCM can be pruned.
+        
+        Parameters:
+        - node_index: The index of the node to be evaluated.
+        - adjacency_matrix: The adjacency matrix representing the SCM graph.
+        - u_data: The data corresponding to the U clusters.
+        
+        Returns:
+        - bool: True if the node can be pruned, False otherwise.
+        """
+        # Implement a causal inference test to decide if the node is prunable
+        # For now, we'll use a placeholder that checks for basic connectivity and data variance
+
+        # Check if the node has any children
+        if np.sum(adjacency_matrix[node_index]) == 0:
+            return True  # No children, hence prunable
+
+        # Check for low variance in the data corresponding to this cluster
+        cluster_data = u_data[:, node_index]
+        if np.var(cluster_data) < 1e-3:  # Example threshold
+            return True  # Low variance, hence prunable
+
+        return False
+
+
 
     def q_a_g_x(self, x):
         if self.opts['is_conv']:
@@ -537,8 +594,8 @@ class Model_Decon(object):
 ############################################# create neg_elbo ##########################################################
 ########################################################################################################################
 
-    def neg_elbo(self, x_seq, a_seq, r_seq, u_seq, anneal=1, mask=None):
-        z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask)
+    def neg_elbo(self, x_seq, a_seq, r_seq, u_seq, anneal=1, mask=None, data=None):
+        z_q, mu_q, cov_q = self.q_z_g_z_x_a_r(x_seq, a_seq, r_seq, mask, data=data)
 
         eps = tf.random_normal((self.opts['batch_size'], self.opts['nsteps'], self.opts['z_dim']),
                                0., 1., dtype=tf.float32)
@@ -551,7 +608,7 @@ class Model_Decon(object):
 
         kl_divergence = gaussianKL(mu_prior, cov_prior, mu_q, cov_q, mask)
 
-        u_mu, u_cov = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask)
+        u_mu, u_cov = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask, data=data)
 
         mu_pxgz, cov_pxgz = self.p_x_g_z_u(z_q_samples, u_mu)
         mu_pagz, cov_pagz = self.p_a_g_z_u(z_q_samples, u_mu)
@@ -598,8 +655,8 @@ class Model_Decon(object):
         loss_recons = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], None])
 
         re_loss = recons_loss(self.opts['recons_cost'], loss_gt, loss_recons)
-        nll, kl_dist, kl_dist_u = self.neg_elbo(x_seq, a_seq, r_seq, u_seq, anneal=self.opts['anneal'], mask=mask)
-        x_recons, a_recons, r_recons = self.recons_xar_seq_g_xar_seq(x_seq, a_seq, r_seq, mask)
+        nll, kl_dist, kl_dist_u = self.neg_elbo(x_seq, a_seq, r_seq, u_seq, anneal=self.opts['anneal'], mask=mask, data=data)
+        x_recons, a_recons, r_recons = self.recons_xar_seq_g_xar_seq(x_seq, a_seq, r_seq, mask, data=data)
 
         train_sample_batch_ids = np.random.choice(data.train_num, self.opts['batch_size'], replace=False)
         train_op = tf.train.AdamOptimizer(self.opts['lr']).minimize(nll)
@@ -653,4 +710,3 @@ class Model_Decon(object):
                     epoch, itr, nll_tr, x_tr_loss, a_tr_loss, r_tr_loss, elapsed_time))
 
         self.saver.save(self.sess, os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'), global_step=counter)
-
