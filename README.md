@@ -150,7 +150,7 @@ First, generate the datasets from the Auction Gym environment:
 
 ```bash
 python src/generate_auction_datasets.py ./config/auction_config.json
-
+```
 
 ## References
 
