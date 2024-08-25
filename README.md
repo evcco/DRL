@@ -140,6 +140,16 @@ In addition to the existing DRL framework, this implementation now includes adva
    ![SCM Clusters](training_results/scm_clusters.png)
 
 This process enhances the interpretability of the model by providing a clear view of the causal relationships within the clustered `u`, contributing to more robust and explainable reinforcement learning.
+### Integration with Auction Gym
+
+To integrate the **Auction Gym** environment with the Deconfounding Reinforcement Learning (DRL) framework, follow the steps below.
+
+#### 1. Generating Auction Datasets
+
+First, generate the datasets from the Auction Gym environment:
+
+```bash
+python src/generate_auction_datasets.py ./config/auction_config.json
 
 
 ## References
