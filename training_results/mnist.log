@@ -1,6 +1,6 @@
-2024-08-22 23:01:06,975 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\framework\op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+2024-08-23 22:06:13,094 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\framework\op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
 Instructions for updating:
 Colocations handled automatically by placer.
-2024-08-22 23:01:09,012 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow_probability\python\distributions\categorical.py:263: multinomial (from tensorflow.python.ops.random_ops) is deprecated and will be removed in a future version.
+2024-08-23 22:06:15,180 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow_probability\python\distributions\categorical.py:263: multinomial (from tensorflow.python.ops.random_ops) is deprecated and will be removed in a future version.
 Instructions for updating:
 Use tf.random.categorical instead.
