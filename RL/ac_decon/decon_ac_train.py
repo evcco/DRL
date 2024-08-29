@@ -34,32 +34,19 @@ class AC_Decon(object):
         # compute initial hidden state z_0 given x_0, a_0, r_0
         _, z_mu_init, z_cov_init = self.model.q_z_g_z_x_a_r(self.x, self.a, self.r)
 
-        # using re-parameterization trick
-        # eps_init = tf.random_normal((self.opts['batch_size'], self.opts['z_dim']), 0., 1., dtype=tf.float32)
-        # self.z_init = z_mu_init + tf.multiply(eps_init, tf.sqrt(1e-8 + z_cov_init))
         self.z_init = z_mu_init
 
         # Case 1: u has a standard Gaussian prior
         self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
                                        0., 1., dtype=tf.float32)
 
-        # Case 2: u has a Bernoulli prior with p=0.5
-        #self.u_init = tf.to_float(tf.random_uniform((self.opts['u_sample_size'], self.opts['batch_size'],
-         #                                            self.opts['u_dim']), 0., 1., dtype=tf.float32) < 0.5)
-
         # compute z_next given z_current and a_current
         self.z_mu_next, z_cov_next = self.model.p_z_g_z_a(self.z, self.a)
-        # using re-parameterization trick
-        # eps_z_next = tf.random_normal((self.opts['batch_size'], self.opts['z_dim']), 0., 1., dtype=tf.float32)
-        # self.z_next = self.z_mu_next + tf.multiply(eps_z_next, tf.sqrt(1e-8 + z_cov_next))
         self.z_next = self.z_mu_next
-
 
         self.reward = None
         self.r_next = self.compute_r_g_cu()
 
-        # load prior policy: copy parameters of p_a_g_z to those of actor_net
-        # self.a_prior_mu, self.a_prior_sigma = self.model.p_a_g_z(self.z)
         self.model_all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
 
         ############################################ setup for policy ##################################################
@@ -131,33 +118,30 @@ class AC_Decon(object):
         td_errors = targets - self.q_a_mu
 
         # critic loss function (mean square value error with regularization)
-        critic_loss = tf.reduce_mean(tf.square(td_errors))
+        self.critic_loss = tf.reduce_mean(tf.square(td_errors))
         for var in critic_vars:
             if 'b' not in var.name:
-                critic_loss += self.opts['l2_reg_critic'] * 0.5 * tf.nn.l2_loss(var)
+                self.critic_loss += self.opts['l2_reg_critic'] * 0.5 * tf.nn.l2_loss(var)
 
         critic_lr = self.opts['lr_critic'] * self.opts['lr_decay'] ** self.episodes
-        self.critic_train_op = tf.train.AdamOptimizer(critic_lr).minimize(critic_loss, var_list=critic_vars)
+        self.critic_train_op = tf.train.AdamOptimizer(critic_lr).minimize(self.critic_loss, var_list=critic_vars)
 
         # actor loss function (mean Q-values under current policy with regularization)
-        actor_loss = -1 * tf.reduce_mean(self.q_sa_mu)
+        self.actor_loss = -1 * tf.reduce_mean(self.q_sa_mu)
 
         # additional regularization terms
-        actor_loss += gaussianNLL(self.a_ph, self.a_mu, self.a_sigma)
+        self.actor_loss += gaussianNLL(self.a_ph, self.a_mu, self.a_sigma)
 
         for var in actor_vars:
             if 'b' not in var.name:
-                actor_loss += self.opts['l2_reg_actor'] * 0.5 * tf.nn.l2_loss(var)
+                self.actor_loss += self.opts['l2_reg_actor'] * 0.5 * tf.nn.l2_loss(var)
 
         actor_lr = self.opts['lr_actor'] * self.opts['lr_decay'] ** self.episodes
-        self.actor_train_op = tf.train.AdamOptimizer(actor_lr).minimize(actor_loss, var_list=actor_vars)
-
-
+        self.actor_train_op = tf.train.AdamOptimizer(actor_lr).minimize(self.actor_loss, var_list=actor_vars)
 
     ####################################################################################################################
     ################################################ functions related to env ##########################################
     ####################################################################################################################
-   
 
     def create_env(self):
         self.sess.run(tf.global_variables_initializer())
@@ -178,9 +162,6 @@ class AC_Decon(object):
         
         # Reinitialize the saver to keep only a maximum of 50 checkpoints
         self.saver = tf.train.Saver(max_to_keep=50)
-
-
-
 
     def compute_z_init(self, x, a, r):
         z_init = self.sess.run(self.z_init, feed_dict={self.x: x, self.a: a, self.r: r})
@@ -207,9 +188,7 @@ class AC_Decon(object):
 
         done = np.abs(r_next_value - self.opts['final_reward']) == 0
 
-
         return z_next_value, np.reshape(r_next_value, self.opts['r_dim'])[0], np.reshape(done, 1)[0], reward_samples
-
 
     ####################################################################################################################
     ################################################ functions related to policy #######################################
@@ -240,6 +219,7 @@ class AC_Decon(object):
 
     def sample_from_memory(self, batch_size):
         return random.sample(self.replay_memory, batch_size)
+
     def calculate_optimal_action_probability(self, z):
         # Assuming the optimal action is determined by the highest probability action from the policy network
         action_mu, action_sigma = self.actor_net(z, reuse=True, is_training=False, trainable=False)
@@ -252,13 +232,16 @@ class AC_Decon(object):
     ####################################################################################################################
 
     def train(self, data):
-
         total_steps = 0
         total_episode = 0
 
         reward_que = deque(maxlen=100)
         reward_list = []
 
+        # Additional metric lists
+        actor_loss_list = []
+        critic_loss_list = []
+        q_value_list = []
 
         self.create_env()
 
@@ -285,11 +268,11 @@ class AC_Decon(object):
                 tr_batch_ids = np.random.choice(data.train_num, self.opts['batch_size'], replace=False)
                 tr_nstep_ids = np.random.choice(self.opts['nsteps'], 1)
                 tr_x_init = np.reshape(data.x_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                       [self.opts['batch_size'], self.opts['x_dim']])
+                                    [self.opts['batch_size'], self.opts['x_dim']])
                 tr_a_init = np.reshape(data.a_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                       [self.opts['batch_size'], self.opts['a_dim']])
+                                    [self.opts['batch_size'], self.opts['a_dim']])
                 tr_r_init = np.reshape(data.r_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                       [self.opts['batch_size'], self.opts['r_dim']])
+                                    [self.opts['batch_size'], self.opts['r_dim']])
 
                 z = self.compute_z_init(tr_x_init, tr_a_init, tr_r_init)
                 u_est = self.compute_u_init(tr_x_init, tr_a_init, tr_r_init)
@@ -308,8 +291,9 @@ class AC_Decon(object):
                     if total_steps % self.opts['train_every'] == 0 and len(self.replay_memory) >= self.opts['mini_batch_size']:
                         mini_batch = self.sample_from_memory(self.opts['mini_batch_size'])
 
-                        _, _ = self.sess.run(
-                            [self.critic_train_op, self.actor_train_op],
+                        # Fetch the actor and critic losses along with the Q-value
+                        critic_loss, _, q_val, actor_loss, _ = self.sess.run(
+                            [self.critic_loss, self.critic_train_op, self.q_sa_mu, self.actor_loss, self.actor_train_op],
                             feed_dict={
                                 self.z_ph: np.asarray([elem[0] for elem in mini_batch]),
                                 self.a_ph: np.asarray([elem[1] for elem in mini_batch]),
@@ -320,7 +304,13 @@ class AC_Decon(object):
                             }
                         )
 
+                        # Update targets
                         _ = self.sess.run(self.update_targets_op)
+
+                        # Log metrics
+                        actor_loss_list.append(actor_loss)
+                        critic_loss_list.append(critic_loss)
+                        q_value_list.append(np.mean(q_val))
 
                     z = z_next
                     total_steps += 1
@@ -332,11 +322,22 @@ class AC_Decon(object):
 
                 total_episode += 1
 
-                print('Episode: {:d}, Steps in Episode: {:d}, Total Reward: {:f}'.format(episode, steps_in_episode, total_reward))
+                # Logging after every episode
+                print(f'Episode {episode}: Steps in Episode: {steps_in_episode}, '
+                    f'Total Reward: {total_reward:.4f}, '
+                    f'Avg Actor Loss: {np.mean(actor_loss_list):.4f}, '
+                    f'Avg Critic Loss: {np.mean(critic_loss_list):.4f}, '
+                    f'Avg Q Value: {np.mean(q_value_list):.4f}')
 
                 reward_que.append(total_reward)
                 reward_list.append(np.mean(reward_que))
 
+                # Log to file
                 f.write('{:f}\n'.format(np.mean(reward_que)))
+
+                # Clear the metric lists after each episode
+                actor_loss_list = []
+                critic_loss_list = []
+                q_value_list = []
 
         self.saver.save(self.sess, os.path.join(checkpoints_dir, 'policy_decon'), global_step=total_episode)
