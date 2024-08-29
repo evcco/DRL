@@ -5,7 +5,9 @@ from collections import deque
 import time
 import random
 from utils import *
-
+import logging
+import os
+import numpy as np 
 class AC_Decon(object):
 
     ####################################################################################################################
@@ -232,6 +234,29 @@ class AC_Decon(object):
     ####################################################################################################################
 
     def train(self, data):
+        # Set up directories
+        work_dir = self.opts.get('work_dir', 'C:/Users/aymen/OneDrive/Documents/GitHub/DRL/training_results')
+        logs_dir = os.path.join(work_dir, 'logs')
+        plots_dir = os.path.join(work_dir, 'plots')
+        checkpoints_dir = os.path.join(work_dir, 'policy_checkpoints')
+        
+        os.makedirs(logs_dir, exist_ok=True)
+        os.makedirs(plots_dir, exist_ok=True)
+        os.makedirs(checkpoints_dir, exist_ok=True)
+
+        # Set up logging
+        log_file = os.path.join(logs_dir, 'ac_training.log')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s [%(levelname)s] %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler()
+            ]
+        )
+
+        logging.info("Training started")
+
         total_steps = 0
         total_episode = 0
 
@@ -245,18 +270,9 @@ class AC_Decon(object):
 
         self.create_env()
 
-        work_dir = self.opts.get('work_dir', './training_results')
-        plots_dir = os.path.join(work_dir, 'plots')
-        os.makedirs(plots_dir, exist_ok=True)
-        
-        checkpoints_dir = os.path.join(work_dir, 'policy_checkpoints')
-        os.makedirs(checkpoints_dir, exist_ok=True)
-
         for episode in range(self.opts['episode_num']):
-
             reward_data_path = os.path.join(plots_dir, 'ac_decon_reward_data.txt')
             with open(reward_data_path, 'a+') as f:
-
                 if episode > self.opts['episode_start'] and episode % self.opts['save_every_episode'] == 0:
                     reward_filename = 'ac_decon_reward_plot_epoch_{:d}.png'.format(episode)
                     save_reward_plots(self.opts, reward_list, reward_filename)
@@ -323,11 +339,15 @@ class AC_Decon(object):
                 total_episode += 1
 
                 # Logging after every episode
-                print(f'Episode {episode}: Steps in Episode: {steps_in_episode}, '
-                    f'Total Reward: {total_reward:.4f}, '
-                    f'Avg Actor Loss: {np.mean(actor_loss_list):.4f}, '
-                    f'Avg Critic Loss: {np.mean(critic_loss_list):.4f}, '
-                    f'Avg Q Value: {np.mean(q_value_list):.4f}')
+                avg_actor_loss = np.mean(actor_loss_list)
+                avg_critic_loss = np.mean(critic_loss_list)
+                avg_q_value = np.mean(q_value_list)
+
+                logging.info(f'Episode {episode}: Steps in Episode: {steps_in_episode}, '
+                            f'Total Reward: {total_reward:.4f}, '
+                            f'Avg Actor Loss: {avg_actor_loss:.4f}, '
+                            f'Avg Critic Loss: {avg_critic_loss:.4f}, '
+                            f'Avg Q Value: {avg_q_value:.4f}')
 
                 reward_que.append(total_reward)
                 reward_list.append(np.mean(reward_que))
@@ -336,8 +356,9 @@ class AC_Decon(object):
                 f.write('{:f}\n'.format(np.mean(reward_que)))
 
                 # Clear the metric lists after each episode
-                actor_loss_list = []
-                critic_loss_list = []
-                q_value_list = []
+                actor_loss_list.clear()
+                critic_loss_list.clear()
+                q_value_list.clear()
 
         self.saver.save(self.sess, os.path.join(checkpoints_dir, 'policy_decon'), global_step=total_episode)
+        logging.info("Training completed")

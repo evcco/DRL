@@ -1,16 +1,14 @@
 #########################
 ## Author: Chaochao Lu ##
 #########################
-import vanilla_config as configs
+import configs as configs
 from model_con import Model_Con
 from data_handler import DataHandler
 
-from con_ac_train import *
+from decon_ac_train import *
 
 def main():
     opts = configs.model_config
-    opts['qzgz_net_layers'] = [128, 128]  # Example layer sizes
-    opts['qzgz_mu_outlayers'] = [64, 64]  # Example layer sizes
 
     os.environ["CUDA_VISIBLE_DEVICES"] = '0'
     gpu_config = tf.ConfigProto(device_count={'GPU': 1}, allow_soft_placement=False, log_device_placement=False)
@@ -26,13 +24,18 @@ def main():
     opts['r_range_lower'] = data.train_r_min
     model = Model_Con(sess, opts)
 
+
     opts['batch_size'] = 1
     opts['va_sample_num'] = 6
     opts['model_bn_is_training'] = False
 
-    print('starting training policy using AC_Con ...')
-    ac = AC_Con(sess, opts, model)
+
+    print('starting training policy using AC_Decon ...')
+    ac = AC_Decon(sess, opts, model)
     ac.train(data)
+
+
 
 if __name__ == "__main__":
     main()
+
