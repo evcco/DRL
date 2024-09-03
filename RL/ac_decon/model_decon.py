@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import time
+import logging
 
 from utils import *
 
@@ -448,12 +449,16 @@ class Model_Decon(object):
 
 
         # Case 1: u is a Gaussian
-        mu, cov = fc_net(self.opts, h_trans, self.opts['qugh_net_layers'],
-                         self.opts['qugh_net_outlayers'], 'qugh_net')
+        # mu, cov = fc_net(self.opts, h_trans, self.opts['qugh_net_layers'],
+        #                  self.opts['qugh_net_outlayers'], 'qugh_net')
+        # return mu, cov
 
-        return mu, cov
+        # Case 2: u is a Bernoulli
+        logits = fc_net(self.opts, h_trans, self.opts['qugh_net_layers'],
+                        self.opts['qugh_net_outlayers'], 'qugh_net')
+        prediction = tf.nn.sigmoid(logits)
 
-
+        return logits, prediction
 
     def q_a_g_x(self, x):
         # x: batch_size x nsteps x x_dim
@@ -514,18 +519,27 @@ class Model_Decon(object):
 
         kl_divergence = gaussianKL(mu_prior, cov_prior, mu_q, cov_q, mask)
 
-        # KL divergence of u when u is a Gaussian
-        mu_u, cov_u = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask)
+        # Case 1: KL divergence of u when u is a Gaussian
+        # mu_u, cov_u = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask)
+        #
+        # mu_u_prior = tf.zeros([self.opts['batch_size'], self.opts['u_dim']])
+        # cov_u_prior = tf.ones([self.opts['batch_size'], self.opts['u_dim']])
+        #
+        # u_kl_divergence = gaussianKL(mu_u_prior, cov_u_prior, mu_u, cov_u, mask)
+        #
+        # mu_pxgz, cov_pxgz = self.p_x_g_z_u(z_q_samples, mu_u)
+        # mu_pagz, cov_pagz = self.p_a_g_z_u(z_q_samples, mu_u)
+        # mu_prgza, cov_prgza = self.p_r_g_z_a_u(z_q_samples, a_seq, mu_u)
 
-        mu_u_prior = tf.zeros([self.opts['batch_size'], self.opts['u_dim']])
-        cov_u_prior = tf.ones([self.opts['batch_size'], self.opts['u_dim']])
+        # Case 2: KL divergence of u when u is a Bernoulli
+        u_logits, u_prediction = self.q_u_g_x_a_r(x_seq, a_seq, r_seq, mask)
+        u_prior = 0.5 * tf.ones([self.opts['batch_size'], self.opts['u_dim']])
+        u_kl_divergence = bernoulliKL(u_prior, u_prediction)
 
-        u_kl_divergence = gaussianKL(mu_u_prior, cov_u_prior, mu_u, cov_u, mask)
 
-        mu_pxgz, cov_pxgz = self.p_x_g_z_u(z_q_samples, mu_u)
-        mu_pagz, cov_pagz = self.p_a_g_z_u(z_q_samples, mu_u)
-        mu_prgza, cov_prgza = self.p_r_g_z_a_u(z_q_samples, a_seq, mu_u)
-
+        mu_pxgz, cov_pxgz = self.p_x_g_z_u(z_q_samples, u_prediction)
+        mu_pagz, cov_pagz = self.p_a_g_z_u(z_q_samples, u_prediction)
+        mu_prgza, cov_prgza = self.p_r_g_z_a_u(z_q_samples, a_seq, u_prediction)
 
         mu_qagx, cov_qagx = self.q_a_g_x(x_seq)
         mu_qrgxa, cov_qrgxa = self.q_r_g_x_a(x_seq, a_seq)
@@ -540,8 +554,14 @@ class Model_Decon(object):
         #  Both nll_pagz and nll_qagx are not necessary when a does not depend on z/x in the data
         nll = nll_pxgz + nll_pagz + nll_prgza + anneal * kl_divergence + nll_qagx + nll_qrgxa + u_kl_divergence
 
+        u_prediction = tf.expand_dims(u_prediction, 1)
+        u_prediction = tf.tile(u_prediction, [1, u_seq.get_shape().as_list()[1], 1])
 
-        return nll, kl_divergence
+        correct_prediction = tf.equal(tf.round(u_prediction), u_seq)
+        u_accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+
+        return nll, kl_divergence, u_kl_divergence, u_accuracy
 
 ########################################################################################################################
 ############################################# inference on the model ###################################################
@@ -632,21 +652,22 @@ class Model_Decon(object):
 ########################################################################################################################
 ############################################# train the model ##########################################################
 ########################################################################################################################
+# COMMENT 训练好模型之后，把模型参数放到文件里面。
+    
     def train_model(self, data):
+        # Ensure the directory for the log file exists
+        log_dir = os.path.join(self.opts['work_dir'])
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        log_file = os.path.join(log_dir, 'mnist.log')
+        
+        # Configure logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_file, filemode='w')
+        logger = logging.getLogger()
+
         batch_num = np.floor(data.train_num / self.opts['batch_size']).astype(int)
         counter = self.opts['counter_start']
-
-        train_nll = []
-        train_kl = []
-        train_x_loss = []
-        train_a_loss = []
-        train_r_loss = []
-
-        validation_nll = []
-        validation_kl = []
-        validation_x_loss = []
-        validation_a_loss = []
-        validation_r_loss = []
 
         x_seq = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], self.opts['x_dim']])
         a_seq = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], self.opts['a_dim']])
@@ -658,23 +679,13 @@ class Model_Decon(object):
         loss_recons = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['nsteps'], None])
 
         re_loss = recons_loss(self.opts['recons_cost'], loss_gt, loss_recons)
-
-        nll, kl_dist = self.neg_elbo(x_seq, a_seq, r_seq, u_seq, anneal=self.opts['anneal'], mask=mask)
+        nll, kl_dist, u_kl_divergence, u_accuracy = self.neg_elbo(x_seq, a_seq, r_seq, u_seq, anneal=self.opts['anneal'], mask=mask)
         x_recons, a_recons, r_recons = self.recons_xar_seq_g_xar_seq(x_seq, a_seq, r_seq, mask)
 
-
-        x_0_sample = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], 1, self.opts['x_dim']])
-        z_0_sample = self.gen_z_g_x(x_0_sample)
-        x_seq_sample = self.gen_xar_seq_g_z(z_0_sample)
-
-
         train_sample_batch_ids = np.random.choice(data.train_num, self.opts['batch_size'], replace=False)
-        validation_sample_batch_ids = np.random.choice(data.validation_num, self.opts['batch_size'], replace=False)
-
         train_op = tf.train.AdamOptimizer(self.opts['lr']).minimize(nll)
 
-        print('starting initializing variables ...')
-
+        logger.info('Starting initializing variables ...')
 
         if self.opts['is_restored']:
             all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
@@ -684,108 +695,42 @@ class Model_Decon(object):
             self.sess.run(tf.global_variables_initializer())
             self.saver = tf.train.Saver(max_to_keep=50)
 
-        print('starting epoch ...')
+        logger.info('Starting epoch ...')
 
         for epoch in range(self.opts['epoch_start'], self.opts['epoch_start']+self.opts['epoch_num']):
 
             if epoch > self.opts['epoch_start'] and epoch % self.opts['save_every_epoch'] == 0:
-                self.saver.save(self.sess, os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'),
-                                global_step=counter)
+                self.saver.save(self.sess, os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'), global_step=counter)
 
             ids_perm = np.random.permutation(data.train_num)
 
             for itr in range(batch_num):
                 start_time = time.time()
-
                 batch_ids = ids_perm[self.opts['batch_size']*itr:self.opts['batch_size']*(itr+1)]
 
-                _, nll_tr, kl_dist_tr = \
-                    self.sess.run([train_op, nll, kl_dist],
-                                  feed_dict={x_seq: data.x_train[batch_ids],
-                                             a_seq: data.a_train[batch_ids],
-                                             r_seq: data.r_train[batch_ids],
-                                             u_seq: data.rich_train[batch_ids],
-                                             mask: data.mask_train[batch_ids]})
+                _, nll_tr = self.sess.run([train_op, nll], feed_dict={x_seq: data.x_train[batch_ids],
+                                                                    a_seq: data.a_train[batch_ids],
+                                                                    r_seq: data.r_train[batch_ids],
+                                                                    u_seq: data.rich_train[batch_ids],
+                                                                    mask: data.mask_train[batch_ids]})
 
-
-                ####################### training ###################################################################
-
-                x_recons_tr, a_recons_tr, r_recons_tr = \
-                    self.sess.run([x_recons, a_recons, r_recons],
-                                  feed_dict={x_seq: data.x_train[train_sample_batch_ids],
-                                             a_seq: data.a_train[train_sample_batch_ids],
-                                             r_seq: data.r_train[train_sample_batch_ids],
-                                             u_seq: data.rich_train[train_sample_batch_ids],
-                                             mask: data.mask_train[train_sample_batch_ids]})
-
+                x_recons_tr, a_recons_tr, r_recons_tr = self.sess.run([x_recons, a_recons, r_recons],
+                                                                    feed_dict={x_seq: data.x_train[train_sample_batch_ids],
+                                                                                a_seq: data.a_train[train_sample_batch_ids],
+                                                                                r_seq: data.r_train[train_sample_batch_ids],
+                                                                                u_seq: data.rich_train[train_sample_batch_ids],
+                                                                                mask: data.mask_train[train_sample_batch_ids]})
 
                 x_tr_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.x_train[train_sample_batch_ids],
-                                                              loss_recons: x_recons_tr})
+                                                            loss_recons: x_recons_tr})
                 a_tr_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.a_train[train_sample_batch_ids],
-                                                              loss_recons: a_recons_tr})
+                                                            loss_recons: a_recons_tr})
                 r_tr_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.r_train[train_sample_batch_ids],
-                                                              loss_recons: r_recons_tr})
-
-                train_nll.append(nll_tr)
-                train_kl.append(kl_dist_tr)
-                train_x_loss.append(x_tr_loss)
-                train_a_loss.append(a_tr_loss)
-                train_r_loss.append(r_tr_loss)
-
-                ####################### validation ####################################################################
-
-                nll_te, kl_dist_te, x_recons_te, a_recons_te, r_recons_te = \
-                    self.sess.run([nll, kl_dist, x_recons, a_recons, r_recons],
-                                  feed_dict={x_seq: data.x_validation[validation_sample_batch_ids],
-                                             a_seq: data.a_validation[validation_sample_batch_ids],
-                                             r_seq: data.r_validation[validation_sample_batch_ids],
-                                             u_seq: data.rich_validation[validation_sample_batch_ids],
-                                             mask: data.mask_validation[validation_sample_batch_ids]})
-
-                x_te_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.x_validation[validation_sample_batch_ids],
-                                                              loss_recons: x_recons_te})
-                a_te_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.a_validation[validation_sample_batch_ids],
-                                                              loss_recons: a_recons_te})
-                r_te_loss = self.sess.run(re_loss, feed_dict={loss_gt: data.r_validation[validation_sample_batch_ids],
-                                                              loss_recons: r_recons_te})
-
-                validation_nll.append(nll_te)
-                validation_kl.append(kl_dist_te)
-                validation_x_loss.append(x_te_loss)
-                validation_a_loss.append(a_te_loss)
-                validation_r_loss.append(r_te_loss)
-
+                                                            loss_recons: r_recons_tr})
 
                 elapsed_time = time.time() - start_time
 
+                logger.info('epoch: {:d}, itr: {:d}, nll_tr: {:f}, x_tr_loss: {:f}, a_tr_loss: {:f}, r_tr_loss: {:f}, elapsed_time: {:f}'.format(
+                    epoch, itr, nll_tr, x_tr_loss, a_tr_loss, r_tr_loss, elapsed_time))
 
-                print('epoch: {:d}, itr: {:d}, nll_tr: {:f}, x_tr_loss: {:f}, a_tr_loss: {:f}, r_tr_loss: {:f}, '
-                      'elapsed_time: {:f};'.format(epoch, itr, nll_tr, x_tr_loss, a_tr_loss, r_tr_loss, elapsed_time))
-
-
-
-                counter = counter + 1
-
-                if counter % self.opts['plot_every'] == 0:
-
-
-                    ####################### sampling ###################################################################
-                    x_0_sample_value = np.reshape(data.x_validation[validation_sample_batch_ids][:,0,:],
-                                                [self.opts['batch_size'], 1, self.opts['x_dim']])
-                    x_seq_sampling = self.sess.run(x_seq_sample, feed_dict={x_0_sample: x_0_sample_value})
-
-
-                    ####################### saving #####################################################################
-                    filename = 'result_plot_epoch_{:d}_itr_{:d}.png'.format(epoch, itr)
-
-                    save_mnist_plots(self.opts, data.x_train[train_sample_batch_ids],
-                                     data.x_validation[validation_sample_batch_ids],
-                                     x_recons_tr, x_recons_te, train_nll, train_kl, validation_nll, validation_kl,
-                                     train_x_loss, validation_x_loss, train_a_loss, validation_a_loss, train_r_loss,
-                                     validation_r_loss, x_seq_sampling, filename)
-
-
-        self.saver.save(self.sess,
-                        os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'),
-                        global_step=counter)
-
+        self.saver.save(self.sess, os.path.join(self.opts['work_dir'], 'model_checkpoints', 'model_decon'), global_step=counter)

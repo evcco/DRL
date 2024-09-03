@@ -1,20 +1,10 @@
-#########################
-## Author: Chaochao Lu ##
-#########################
-from collections import deque
-import time
-import random
-import numpy as np
 import tensorflow as tf
+import numpy as np
 import os
-
-from utils import *
+import logging
+from collections import deque
 
 class AC_Con(object):
-
-    ####################################################################################################################
-    ################################################ construct computational graph #####################################
-    ####################################################################################################################
 
     def __init__(self, sess, opts, model):
         self.sess = sess
@@ -22,39 +12,19 @@ class AC_Con(object):
         self.model = model
         self.saver = None
 
-        ################################################################################################################
-
         np.random.seed(0)
 
-        ################################################ make our environment ##########################################
-
+        # Define placeholders
         self.x = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['x_dim']])
         self.z = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['z_dim']])
         self.a = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['a_dim']])
         self.r = tf.placeholder(tf.float32, shape=[self.opts['batch_size'], self.opts['r_dim']])
-        self.u = tf.placeholder(tf.float32, shape=[self.opts['u_sample_size'],
-                                                   self.opts['batch_size'], self.opts['u_dim']])
 
-        # compute initial hidden state z_0 given x_0, a_0, r_0
+        # Compute initial hidden state z_0 given x_0, a_0, r_0 using Model_Con
         _, z_mu_init, z_cov_init = self.model.q_z_g_z_x_a_r(self.x, self.a, self.r)
-
         self.z_init = z_mu_init
 
-        # Case 1: u has a standard Gaussian prior
-        self.u_init = tf.random_normal((self.opts['u_sample_size'], self.opts['batch_size'], self.opts['u_dim']),
-                                       0., 1., dtype=tf.float32)
-
-        # compute z_next given z_current and a_current
-        self.z_mu_next, z_cov_next = self.model.p_z_g_z_a(self.z, self.a)
-        self.z_next = self.z_mu_next
-
-        self.reward = None
-        self.r_next = self.compute_r_g_cu()
-
-        self.model_all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-
-        ############################################ setup for policy ##################################################
-
+        # Define placeholders for training
         self.z_ph = tf.placeholder(tf.float32, shape=[None, self.opts['z_dim']])
         self.a_ph = tf.placeholder(tf.float32, shape=[None, self.opts['a_dim']])
         self.r_ph = tf.placeholder(tf.float32, shape=[None])
@@ -63,44 +33,62 @@ class AC_Con(object):
 
         self.is_training_ph = tf.placeholder(dtype=tf.bool, shape=())
 
+        # Initialize episode counter
         self.episodes = tf.Variable(0.0, trainable=False)
         self.episode_increase_op = self.episodes.assign_add(1)
 
+        # Replay memory
         self.replay_memory = deque(maxlen=self.opts['replay_memory_capacity'])
 
-        ################################## construct architecture for ACPG_TD ##########################################
+        # Metric lists
+        self.actor_loss_list = []
+        self.critic_loss_list = []
+        self.q_value_list = []
+        self.reward_list = []
 
-        # construct the actor network with its corresponding target network
+        # Construct architecture for Actor-Critic
+        self.construct_actor_critic_networks()
+
+    def construct_actor_critic_networks(self):
+        # Actor network
         with tf.variable_scope('actor_net'):
             self.a_mu, self.a_sigma = self.actor_net(self.z_ph, False, self.is_training_ph, True)
-        # re-parameterization trick
+        # Re-parameterization trick
         eps = tf.random_normal((1, self.opts['a_dim']), 0., 1., dtype=tf.float32)
         self.a_samples = tf.clip_by_value(self.a_mu + tf.multiply(eps, tf.sqrt(1e-8 + self.a_sigma)),
                                           -self.opts['a_range'], self.opts['a_range'])
 
+        # Target actor network
         with tf.variable_scope('target_actor_net', reuse=False):
             self.target_a_mu, self.target_a_sigma = self.actor_net(self.z_next_ph, False, self.is_training_ph, False)
             self.target_a_mu = tf.stop_gradient(self.target_a_mu)
             self.target_a_sigma = tf.stop_gradient(self.target_a_sigma)
 
-        # construct the critic network with its corresponding target network
+        # Critic network
         with tf.variable_scope('critic_net'):
             self.q_a_mu, self.q_a_sigma = self.critic_net(self.z_ph, self.a_ph, False, self.is_training_ph, True)
             self.q_sa_mu, self.q_sa_sigma = self.critic_net(self.z_ph, self.a_mu, True, self.is_training_ph, True)
 
+        # Target critic network
         with tf.variable_scope('target_critic_net', reuse=False):
             self.q_next_mu, self.q_next_sigma = \
                 self.critic_net(self.z_next_ph, self.target_a_mu, False, self.is_training_ph, False)
             self.q_next_mu = tf.stop_gradient(self.q_next_mu)
             self.q_next_sigma = tf.stop_gradient(self.q_next_sigma)
 
-        # collect vars for each network
+        # Collect variables for each network
         actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
         target_actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_actor_net')
         critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic_net')
         target_critic_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_critic_net')
 
-        # construct ops of updating parameters of target networks
+        # Construct ops for updating parameters of target networks
+        self.update_targets_op = self.construct_update_ops(actor_vars, target_actor_vars, critic_vars, target_critic_vars)
+
+        # Compute loss functions
+        self.construct_loss_functions(actor_vars, critic_vars)
+
+    def construct_update_ops(self, actor_vars, target_actor_vars, critic_vars, target_critic_vars):
         update_target_ops = []
         for i, target_actor_var in enumerate(target_actor_vars):
             update_target_actor_op = target_actor_var.assign(self.opts['tau'] * actor_vars[i] +
@@ -112,16 +100,15 @@ class AC_Con(object):
                                                                (1 - self.opts['tau']) * target_critic_var)
             update_target_ops.append(update_target_critic_op)
 
-        self.update_targets_op = tf.group(*update_target_ops)
+        return tf.group(*update_target_ops)
 
-        ######################################### compute loss functions ###############################################
-
-        # one-step temporal difference error
+    def construct_loss_functions(self, actor_vars, critic_vars):
+        # One-step temporal difference error
         targets = tf.expand_dims(self.r_ph, 1) + \
                   tf.expand_dims(self.is_not_terminal_ph, 1) * self.opts['gamma'] * self.q_next_mu
         td_errors = targets - self.q_a_mu
 
-        # critic loss function (mean square value error with regularization)
+        # Critic loss function
         self.critic_loss = tf.reduce_mean(tf.square(td_errors))
         for var in critic_vars:
             if 'b' not in var.name:
@@ -130,11 +117,9 @@ class AC_Con(object):
         critic_lr = self.opts['lr_critic'] * self.opts['lr_decay'] ** self.episodes
         self.critic_train_op = tf.train.AdamOptimizer(critic_lr).minimize(self.critic_loss, var_list=critic_vars)
 
-        # actor loss function (mean Q-values under current policy with regularization)
+        # Actor loss function
         self.actor_loss = -1 * tf.reduce_mean(self.q_sa_mu)
-
-        # additional regularization terms
-        self.actor_loss += gaussianNLL(self.a_ph, self.a_mu, self.a_sigma)
+        self.actor_loss += self.gaussianNLL(self.a_ph, self.a_mu, self.a_sigma)
 
         for var in actor_vars:
             if 'b' not in var.name:
@@ -143,76 +128,15 @@ class AC_Con(object):
         actor_lr = self.opts['lr_actor'] * self.opts['lr_decay'] ** self.episodes
         self.actor_train_op = tf.train.AdamOptimizer(actor_lr).minimize(self.actor_loss, var_list=actor_vars)
 
-    ####################################################################################################################
-    ################################################ functions related to env ##########################################
-    ####################################################################################################################
-
-    def create_env(self):
-        self.sess.run(tf.global_variables_initializer())
-        self.saver = tf.train.Saver(self.model_all_vars)
-
-        # Define the default checkpoint path
-        default_checkpoint_path = "./model_decon_uGaussian"  # Adjust this path as necessary
-
-        # Get the checkpoint path from opts or use the default
-        checkpoint_path = self.opts.get('model_checkpoint', default_checkpoint_path)
-        
-        # Check if checkpoint_path is not None and exists
-        if checkpoint_path and os.path.exists(checkpoint_path + ".index"):
-            self.saver.restore(self.sess, checkpoint_path)
-            print(f"Model restored from checkpoint: {checkpoint_path}")
-        else:
-            print(f"No valid checkpoint found at {checkpoint_path}. Initializing variables.")
-        
-        # Reinitialize the saver to keep only a maximum of 50 checkpoints
-        self.saver = tf.train.Saver(max_to_keep=50)
-
-    def compute_z_init(self, x, a, r):
-        z_init = self.sess.run(self.z_init, feed_dict={self.x: x, self.a: a, self.r: r})
-        return z_init
-
-    def compute_u_init(self, x, a, r):
-        u_init = self.sess.run(self.u_init, feed_dict={self.x: x, self.a: a, self.r: r})
-        return u_init
-
-    def compute_r_g_cu(self):
-        self.reward = []
-        for i in range(self.opts['u_sample_size']):
-            reward_mu, _ = self.model.p_r_g_z_a_u(self.z, self.a,
-                                                  tf.reshape(self.u[i], [self.opts['batch_size'],
-                                                                         self.opts['u_dim']]))
-            self.reward.append(reward_mu)
-        return tf.reduce_mean(self.reward)
-
-    def step(self, z, a, x, u):
-        # r_next: batch_size x r_dim
-        z_next_value, r_next_value, reward_samples = \
-            self.sess.run([self.z_next, self.r_next, self.reward],
-                          feed_dict={self.z: z, self.a: a, self.x: x, self.u: u})
-
-        done = np.abs(r_next_value - self.opts['final_reward']) == 0
-
-        return z_next_value, np.reshape(r_next_value, self.opts['r_dim'])[0], np.reshape(done, 1)[0], reward_samples
-
-    ####################################################################################################################
-    ################################################ functions related to policy #######################################
-    ####################################################################################################################
-
     def actor_net(self, z, reuse, is_training, trainable):
-        # policy function
-        mu, sigma = ac_fc_net(self.opts, z, self.opts['policy_net_layers'],
-                              self.opts['policy_net_outlayers'], 'policy_net',
-                              reuse=reuse, is_training=is_training, trainable=trainable)
-        mu = mu * 2
-        return mu, sigma
+        return self.model.fc_net(z, self.opts['policy_net_layers'], self.opts['policy_net_outlayers'], 'policy_net')
 
     def critic_net(self, z, a, reuse, is_training, trainable):
-        # stochastic value function
         z_a = tf.concat([z, a], axis=1)
-        mu, sigma = ac_fc_net(self.opts, z_a, self.opts['value_net_layers'],
-                              self.opts['value_net_outlayers'], 'value_net',
-                              reuse=reuse, is_training=is_training, trainable=trainable)
-        return mu, sigma
+        return self.model.fc_net(z_a, self.opts['value_net_layers'], self.opts['value_net_outlayers'], 'value_net')
+
+    def gaussianNLL(self, labels, mu, sigma):
+        return 0.5 * tf.reduce_mean(tf.square(labels - mu) / (sigma + 1e-8) + tf.log(sigma + 1e-8))
 
     def choose_action(self, z, is_training):
         action = self.sess.run(self.a_samples, feed_dict={self.z_ph: z, self.is_training_ph: is_training})
@@ -224,138 +148,131 @@ class AC_Con(object):
     def sample_from_memory(self, batch_size):
         return random.sample(self.replay_memory, batch_size)
 
-    def calculate_optimal_action_probability(self, z):
-        # Assuming the optimal action is determined by the highest probability action from the policy network
-        action_mu, action_sigma = self.actor_net(z, reuse=True, is_training=False, trainable=False)
-        action_distribution = tf.distributions.Normal(loc=action_mu, scale=action_sigma)
-        action_prob = self.sess.run(action_distribution.prob(action_mu))
-        return action_prob
-
-    ####################################################################################################################
-    ################################################ training ##########################################################
-    ####################################################################################################################
-
     def train(self, data):
+        # Set up directories
+        work_dir = self.opts.get('work_dir', './training_results')
+        logs_dir = os.path.join(work_dir, 'logs')
+        plots_dir = os.path.join(work_dir, 'plots')
+        checkpoints_dir = os.path.join(work_dir, 'policy_checkpoints')
+        
+        os.makedirs(logs_dir, exist_ok=True)
+        os.makedirs(plots_dir, exist_ok=True)
+        os.makedirs(checkpoints_dir, exist_ok=True)
+
+        # Set up logging
+        log_file = os.path.join(logs_dir, 'ac_con_training.log')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s [%(levelname)s] %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler()
+            ]
+        )
+
+        logging.info("Training started")
+
         total_steps = 0
         total_episode = 0
 
         reward_que = deque(maxlen=100)
         reward_list = []
 
-        # Additional metric lists
-        actor_loss_list = []
-        critic_loss_list = []
-        q_value_list = []
-
         self.create_env()
 
-        work_dir = self.opts.get('work_dir', './training_results')
-        plots_dir = os.path.join(work_dir, 'plots')
-        os.makedirs(plots_dir, exist_ok=True)
-
-        checkpoints_dir = os.path.join(work_dir, 'policy_checkpoints')
-        os.makedirs(checkpoints_dir, exist_ok=True)
-
         for episode in range(self.opts['episode_num']):
-            reward_data_path = os.path.join(plots_dir, 'ac_con_reward_data.txt')
-            with open(reward_data_path, 'a+') as f:
+            total_reward = 0
+            steps_in_episode = 0
 
-                if episode > self.opts['episode_start'] and episode % self.opts['save_every_episode'] == 0:
-                    reward_filename = 'ac_con_reward_plot_epoch_{:d}.png'.format(episode)
-                    save_reward_plots(self.opts, reward_list, reward_filename)
-                    self.saver.save(self.sess, os.path.join(checkpoints_dir, 'policy_con'), global_step=total_episode)
+            tr_batch_ids = np.random.choice(data.train_num, self.opts['batch_size'], replace=False)
+            tr_nstep_ids = np.random.choice(self.opts['nsteps'], 1)
+            tr_x_init = np.reshape(data.x_train[tr_batch_ids][:, tr_nstep_ids, :], [self.opts['batch_size'], self.opts['x_dim']])
+            tr_a_init = np.reshape(data.a_train[tr_batch_ids][:, tr_nstep_ids, :], [self.opts['batch_size'], self.opts['a_dim']])
+            tr_r_init = np.reshape(data.r_train[tr_batch_ids][:, tr_nstep_ids, :], [self.opts['batch_size'], self.opts['r_dim']])
 
-                total_reward = 0
-                steps_in_episode = 0
+            z = self.sess.run(self.z_init, feed_dict={self.x: tr_x_init, self.a: tr_a_init, self.r: tr_r_init})
 
-                tr_batch_ids = np.random.choice(data.train_num, self.opts['batch_size'], replace=False)
-                tr_nstep_ids = np.random.choice(self.opts['nsteps'], 1)
-                tr_x_init = np.reshape(data.x_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                   [self.opts['batch_size'], self.opts['x_dim']])
-                tr_a_init = np.reshape(data.a_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                   [self.opts['batch_size'], self.opts['a_dim']])
-                tr_r_init = np.reshape(data.r_train[tr_batch_ids][:, tr_nstep_ids, :],
-                                   [self.opts['batch_size'], self.opts['r_dim']])
+            for step in range(self.opts['max_steps_in_episode']):
+                action = self.choose_action(z, False)
+                z_next, reward, done, _ = self.step(z, action, tr_x_init)
 
-                z = self.compute_z_init(tr_x_init, tr_a_init, tr_r_init)
-                u_est = self.compute_u_init(tr_x_init, tr_a_init, tr_r_init)
+                total_reward += reward
 
-                for step in range(self.opts['max_steps_in_episode']):
-                    action = self.choose_action(z, False)
+                self.add_to_memory((np.reshape(z, self.opts['z_dim']), np.reshape(action, self.opts['a_dim']),
+                                    reward, np.reshape(z_next, self.opts['z_dim']), 0.0 if done else 1.0))
 
-                    z_next, reward, done, reward_samples = self.step(z, action, tr_x_init, u_est)
+                if total_steps % self.opts['train_every'] == 0 and len(self.replay_memory) >= self.opts['mini_batch_size']:
+                    mini_batch = self.sample_from_memory(self.opts['mini_batch_size'])
+                    critic_loss, _, q_val, actor_loss, _ = self.sess.run(
+                        [self.critic_loss, self.critic_train_op, self.q_sa_mu, self.actor_loss, self.actor_train_op],
+                        feed_dict={
+                            self.z_ph: np.asarray([elem[0] for elem in mini_batch]),
+                            self.a_ph: np.asarray([elem[1] for elem in mini_batch]),
+                            self.r_ph: np.asarray([elem[2] for elem in mini_batch]),
+                            self.z_next_ph: np.asarray([elem[3] for elem in mini_batch]),
+                            self.is_not_terminal_ph: np.asarray([elem[4] for elem in mini_batch]),
+                            self.is_training_ph: True
+                        }
+                    )
 
-                    total_reward += reward
+                    _ = self.sess.run(self.update_targets_op)
 
-                    self.add_to_memory((np.reshape(z, self.opts['z_dim']), np.reshape(action, self.opts['a_dim']), reward,
-                                        np.reshape(z_next, self.opts['z_dim']), 0.0 if done else 1.0))
+                    # Log metrics
+                    self.actor_loss_list.append(actor_loss)
+                    self.critic_loss_list.append(critic_loss)
+                    self.q_value_list.append(np.mean(q_val))
 
-                    # update parameters using mini-batch of experience
-                    if total_steps % self.opts['train_every'] == 0 and len(self.replay_memory) >= self.opts['mini_batch_size']:
-                        mini_batch = self.sample_from_memory(self.opts['mini_batch_size'])
+                z = z_next
+                total_steps += 1
+                steps_in_episode += 1
 
-                        # Fetch the actor and critic losses along with the Q-value
-                        states = np.array([elem[0] for elem in mini_batch])
-                        print(f"Before Reshape - States shape: {states.shape}")
+                if done:
+                    _ = self.sess.run(self.episode_increase_op)
+                    break
 
-                        # Correct reshaping
-                        flat_states = states.reshape([self.opts['mini_batch_size'], -1])
-                        print(f"Flattened states shape: {flat_states.shape}")
+            total_episode += 1
 
-                        # Fetch the rest of the batch
-                        actions = np.array([elem[1] for elem in mini_batch])
-                        rewards = np.array([elem[2] for elem in mini_batch])
-                        next_states = np.array([elem[3] for elem in mini_batch]).reshape([self.opts['mini_batch_size'], -1])
-                        is_not_terminal = np.array([elem[4] for elem in mini_batch])
+            # Logging after every episode
+            avg_actor_loss = np.mean(self.actor_loss_list)
+            avg_critic_loss = np.mean(self.critic_loss_list)
+            avg_q_value = np.mean(self.q_value_list)
 
-                        # Training steps
-                        critic_loss, _, q_val, actor_loss, _ = self.sess.run(
-                            [self.critic_loss, self.critic_train_op, self.q_sa_mu, self.actor_loss, self.actor_train_op],
-                            feed_dict={
-                                self.z_ph: flat_states,
-                                self.a_ph: actions,
-                                self.r_ph: rewards,
-                                self.z_next_ph: next_states,
-                                self.is_not_terminal_ph: is_not_terminal,
-                                self.is_training_ph: True
-                            }
-                        )
+            logging.info(f'Episode {episode}: Steps in Episode: {steps_in_episode}, '
+                         f'Total Reward: {total_reward:.4f}, '
+                         f'Avg Actor Loss: {avg_actor_loss:.4f}, '
+                         f'Avg Critic Loss: {avg_critic_loss:.4f}, '
+                         f'Avg Q Value: {avg_q_value:.4f}')
 
-                        # Update targets
-                        _ = self.sess.run(self.update_targets_op)
+            reward_que.append(total_reward)
+            reward_list.append(np.mean(reward_que))
 
-                        # Log metrics
-                        actor_loss_list.append(actor_loss)
-                        critic_loss_list.append(critic_loss)
-                        q_value_list.append(np.mean(q_val))
-
-                    z = z_next
-                    total_steps += 1
-                    steps_in_episode += 1
-
-                    if done:
-                        _ = self.sess.run(self.episode_increase_op)
-                        break
-
-                total_episode += 1
-
-                # Logging after every episode
-                print(f'Episode {episode}: Steps in Episode: {steps_in_episode}, '
-                      f'Total Reward: {total_reward:.4f}, '
-                      f'Avg Actor Loss: {np.mean(actor_loss_list):.4f}, '
-                      f'Avg Critic Loss: {np.mean(critic_loss_list):.4f}, '
-                      f'Avg Q Value: {np.mean(q_value_list):.4f}')
-
-                reward_que.append(total_reward)
-                reward_list.append(np.mean(reward_que))
-
-                # Log to file
-                f.write('{:f}\n'.format(np.mean(reward_que)))
-
-                # Clear the metric lists after each episode
-                actor_loss_list = []
-                critic_loss_list = []
-                q_value_list = []
+            # Clear the metric lists after each episode
+            self.actor_loss_list.clear()
+            self.critic_loss_list.clear()
+            self.q_value_list.clear()
 
         self.saver.save(self.sess, os.path.join(checkpoints_dir, 'policy_con'), global_step=total_episode)
+        logging.info("Training completed.")
 
+    def create_env(self):
+        self.sess.run(tf.global_variables_initializer())
+        self.saver = tf.train.Saver()
+
+        default_checkpoint_path = "./model_con"
+        checkpoint_path = self.opts.get('model_checkpoint', default_checkpoint_path)
+
+        if checkpoint_path and os.path.exists(checkpoint_path + ".index"):
+            self.saver.restore(self.sess, checkpoint_path)
+            print(f"Model restored from checkpoint: {checkpoint_path}")
+        else:
+            print(f"No valid checkpoint found at {checkpoint_path}. Initializing variables.")
+
+    def step(self, z, action, x_init):
+        # Replace this method with your environment step logic
+        # This is a placeholder function
+        # You would compute the next state, reward, and done flag based on the environment
+        z_next = z  # This should be computed based on your model/environment
+        reward = np.random.rand()  # Placeholder for actual reward computation
+        done = False  # Placeholder for actual done condition
+        reward_samples = None  # Placeholder if you need to return additional samples
+        return z_next, reward, done, reward_samples

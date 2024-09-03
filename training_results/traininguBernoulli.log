@@ -1,0 +1,64 @@
+2024-09-03 17:51:29,299 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\framework\op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+2024-09-03 17:51:34,311 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\ops\math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.cast instead.
+2024-09-03 17:51:42,237 - INFO - Starting initializing variables ...
+2024-09-03 17:51:44,588 - INFO - Starting epoch ...
+2024-09-03 17:51:54,149 - INFO - epoch: 0, itr: 0, nll_tr: 5232638.500000, x_tr_loss: 277178.750000, a_tr_loss: 0.119749, r_tr_loss: 0.006606, elapsed_time: 9.557887
+2024-09-03 17:51:54,889 - INFO - epoch: 0, itr: 1, nll_tr: 5299896.500000, x_tr_loss: 277176.718750, a_tr_loss: 0.120147, r_tr_loss: 0.006059, elapsed_time: 0.739558
+2024-09-03 17:51:55,585 - INFO - epoch: 0, itr: 2, nll_tr: 5135327.500000, x_tr_loss: 277176.781250, a_tr_loss: 0.118481, r_tr_loss: 0.006397, elapsed_time: 0.696706
+2024-09-03 17:51:56,274 - INFO - epoch: 0, itr: 3, nll_tr: 4688713.000000, x_tr_loss: 277177.687500, a_tr_loss: 0.111755, r_tr_loss: 0.005973, elapsed_time: 0.688471
+2024-09-03 17:51:56,972 - INFO - epoch: 0, itr: 4, nll_tr: 4882665.000000, x_tr_loss: 277175.531250, a_tr_loss: 0.108207, r_tr_loss: 0.006104, elapsed_time: 0.698179
+2024-09-03 17:51:57,658 - INFO - epoch: 0, itr: 5, nll_tr: 4850838.500000, x_tr_loss: 277175.812500, a_tr_loss: 0.113868, r_tr_loss: 0.006156, elapsed_time: 0.685778
+2024-09-03 17:51:58,333 - INFO - epoch: 0, itr: 6, nll_tr: 4944146.000000, x_tr_loss: 277174.093750, a_tr_loss: 0.107247, r_tr_loss: 0.005747, elapsed_time: 0.674633
+2024-09-03 17:51:59,027 - INFO - epoch: 0, itr: 7, nll_tr: 4638768.000000, x_tr_loss: 277174.218750, a_tr_loss: 0.106655, r_tr_loss: 0.005785, elapsed_time: 0.693736
+2024-09-03 17:51:59,711 - INFO - epoch: 0, itr: 8, nll_tr: 4935401.500000, x_tr_loss: 277173.937500, a_tr_loss: 0.100168, r_tr_loss: 0.005811, elapsed_time: 0.683659
+2024-09-03 17:52:00,435 - INFO - epoch: 0, itr: 9, nll_tr: 5034294.000000, x_tr_loss: 277173.062500, a_tr_loss: 0.109347, r_tr_loss: 0.005251, elapsed_time: 0.724286
+2024-09-03 17:52:01,154 - INFO - epoch: 0, itr: 10, nll_tr: 4706750.000000, x_tr_loss: 277170.906250, a_tr_loss: 0.106333, r_tr_loss: 0.005544, elapsed_time: 0.718827
+2024-09-03 17:52:01,857 - INFO - epoch: 0, itr: 11, nll_tr: 4545907.500000, x_tr_loss: 277172.156250, a_tr_loss: 0.104977, r_tr_loss: 0.005272, elapsed_time: 0.702715
+2024-09-03 17:52:02,568 - INFO - epoch: 0, itr: 12, nll_tr: 4754383.000000, x_tr_loss: 277171.343750, a_tr_loss: 0.110860, r_tr_loss: 0.005215, elapsed_time: 0.711377
+2024-09-03 17:52:03,244 - INFO - epoch: 0, itr: 13, nll_tr: 4998074.000000, x_tr_loss: 277172.312500, a_tr_loss: 0.118689, r_tr_loss: 0.005185, elapsed_time: 0.674548
+2024-09-03 17:52:03,907 - INFO - epoch: 0, itr: 14, nll_tr: 4555374.000000, x_tr_loss: 277172.562500, a_tr_loss: 0.121969, r_tr_loss: 0.005203, elapsed_time: 0.663316
+2024-09-03 17:52:04,590 - INFO - epoch: 0, itr: 15, nll_tr: 4545593.000000, x_tr_loss: 277171.218750, a_tr_loss: 0.120330, r_tr_loss: 0.005126, elapsed_time: 0.681761
+2024-09-03 17:52:05,281 - INFO - epoch: 0, itr: 16, nll_tr: 4698934.000000, x_tr_loss: 277171.937500, a_tr_loss: 0.117428, r_tr_loss: 0.005524, elapsed_time: 0.690968
+2024-09-03 17:52:05,964 - INFO - epoch: 0, itr: 17, nll_tr: 4627902.500000, x_tr_loss: 277168.937500, a_tr_loss: 0.120206, r_tr_loss: 0.005379, elapsed_time: 0.683463
+2024-09-03 17:52:06,621 - INFO - epoch: 0, itr: 18, nll_tr: 4356610.500000, x_tr_loss: 277170.468750, a_tr_loss: 0.114066, r_tr_loss: 0.005578, elapsed_time: 0.656875
+2024-09-03 17:52:07,293 - INFO - epoch: 0, itr: 19, nll_tr: 4683868.000000, x_tr_loss: 277171.656250, a_tr_loss: 0.123159, r_tr_loss: 0.005675, elapsed_time: 0.671859
+2024-09-03 17:52:07,962 - INFO - epoch: 0, itr: 20, nll_tr: 4649855.000000, x_tr_loss: 277171.031250, a_tr_loss: 0.122881, r_tr_loss: 0.005458, elapsed_time: 0.668865
+2024-09-03 17:52:08,650 - INFO - epoch: 0, itr: 21, nll_tr: 4620168.000000, x_tr_loss: 277169.875000, a_tr_loss: 0.117876, r_tr_loss: 0.005594, elapsed_time: 0.686983
+2024-09-03 17:52:09,315 - INFO - epoch: 0, itr: 22, nll_tr: 4375205.500000, x_tr_loss: 277168.812500, a_tr_loss: 0.117493, r_tr_loss: 0.005393, elapsed_time: 0.663852
+2024-09-03 17:52:09,999 - INFO - epoch: 0, itr: 23, nll_tr: 4293916.500000, x_tr_loss: 277167.062500, a_tr_loss: 0.115016, r_tr_loss: 0.005157, elapsed_time: 0.684372
+2024-09-03 17:52:10,661 - INFO - epoch: 0, itr: 24, nll_tr: 4534115.500000, x_tr_loss: 277167.093750, a_tr_loss: 0.108784, r_tr_loss: 0.005434, elapsed_time: 0.661996
+2024-09-03 17:52:11,340 - INFO - epoch: 0, itr: 25, nll_tr: 4162264.250000, x_tr_loss: 277167.500000, a_tr_loss: 0.108598, r_tr_loss: 0.005497, elapsed_time: 0.678830
+2024-09-03 17:52:12,042 - INFO - epoch: 0, itr: 26, nll_tr: 4414149.500000, x_tr_loss: 277165.687500, a_tr_loss: 0.101540, r_tr_loss: 0.005094, elapsed_time: 0.702186
+2024-09-03 17:52:12,714 - INFO - epoch: 0, itr: 27, nll_tr: 4240907.000000, x_tr_loss: 277166.062500, a_tr_loss: 0.101199, r_tr_loss: 0.005399, elapsed_time: 0.672501
+2024-09-03 17:52:13,378 - INFO - epoch: 0, itr: 28, nll_tr: 4407144.000000, x_tr_loss: 277165.343750, a_tr_loss: 0.097785, r_tr_loss: 0.005252, elapsed_time: 0.663259
+2024-09-03 17:52:14,064 - INFO - epoch: 0, itr: 29, nll_tr: 4509616.000000, x_tr_loss: 277163.218750, a_tr_loss: 0.090730, r_tr_loss: 0.005374, elapsed_time: 0.685657
+2024-09-03 17:52:14,755 - INFO - epoch: 0, itr: 30, nll_tr: 4571330.000000, x_tr_loss: 277164.343750, a_tr_loss: 0.093522, r_tr_loss: 0.005344, elapsed_time: 0.689350
+2024-09-03 17:52:15,433 - INFO - epoch: 0, itr: 31, nll_tr: 4411818.000000, x_tr_loss: 277163.906250, a_tr_loss: 0.089657, r_tr_loss: 0.005182, elapsed_time: 0.677095
+2024-09-03 17:52:16,092 - INFO - epoch: 0, itr: 32, nll_tr: 4225487.000000, x_tr_loss: 277161.343750, a_tr_loss: 0.081654, r_tr_loss: 0.005483, elapsed_time: 0.659395
+2024-09-03 17:52:16,751 - INFO - epoch: 0, itr: 33, nll_tr: 4130468.500000, x_tr_loss: 277164.062500, a_tr_loss: 0.082871, r_tr_loss: 0.005487, elapsed_time: 0.659142
+2024-09-03 17:52:17,445 - INFO - epoch: 0, itr: 34, nll_tr: 4541386.000000, x_tr_loss: 277162.718750, a_tr_loss: 0.083400, r_tr_loss: 0.005230, elapsed_time: 0.693897
+2024-09-03 17:52:18,115 - INFO - epoch: 0, itr: 35, nll_tr: 4305079.000000, x_tr_loss: 277160.937500, a_tr_loss: 0.081933, r_tr_loss: 0.005193, elapsed_time: 0.668817
+2024-09-03 17:52:18,778 - INFO - epoch: 0, itr: 36, nll_tr: 4143282.000000, x_tr_loss: 277159.750000, a_tr_loss: 0.081747, r_tr_loss: 0.005237, elapsed_time: 0.662894
+2024-09-03 17:52:19,471 - INFO - epoch: 0, itr: 37, nll_tr: 4246952.000000, x_tr_loss: 277162.000000, a_tr_loss: 0.077266, r_tr_loss: 0.005024, elapsed_time: 0.693063
+2024-09-03 17:52:20,146 - INFO - epoch: 0, itr: 38, nll_tr: 4201989.500000, x_tr_loss: 277161.156250, a_tr_loss: 0.076887, r_tr_loss: 0.005028, elapsed_time: 0.674267
+2024-09-03 17:52:20,811 - INFO - epoch: 0, itr: 39, nll_tr: 4472119.500000, x_tr_loss: 277160.843750, a_tr_loss: 0.078416, r_tr_loss: 0.005256, elapsed_time: 0.665648
+2024-09-03 17:52:21,459 - INFO - epoch: 0, itr: 40, nll_tr: 4042377.500000, x_tr_loss: 277158.125000, a_tr_loss: 0.081476, r_tr_loss: 0.005127, elapsed_time: 0.647851
+2024-09-03 17:52:22,107 - INFO - epoch: 0, itr: 41, nll_tr: 4408994.000000, x_tr_loss: 277158.968750, a_tr_loss: 0.087110, r_tr_loss: 0.005280, elapsed_time: 0.647300
+2024-09-03 17:52:22,807 - INFO - epoch: 0, itr: 42, nll_tr: 4007553.500000, x_tr_loss: 277156.000000, a_tr_loss: 0.082766, r_tr_loss: 0.004973, elapsed_time: 0.699972
+2024-09-03 17:52:23,577 - INFO - epoch: 0, itr: 43, nll_tr: 4165026.750000, x_tr_loss: 277157.718750, a_tr_loss: 0.091710, r_tr_loss: 0.005286, elapsed_time: 0.770027
+2024-09-03 17:52:24,262 - INFO - epoch: 0, itr: 44, nll_tr: 3914227.500000, x_tr_loss: 277157.843750, a_tr_loss: 0.081338, r_tr_loss: 0.005067, elapsed_time: 0.685053
+2024-09-03 17:52:24,936 - INFO - epoch: 0, itr: 45, nll_tr: 4357979.500000, x_tr_loss: 277156.031250, a_tr_loss: 0.083903, r_tr_loss: 0.005466, elapsed_time: 0.672609
+2024-09-03 17:52:25,591 - INFO - epoch: 0, itr: 46, nll_tr: 3983357.000000, x_tr_loss: 277154.843750, a_tr_loss: 0.082142, r_tr_loss: 0.005320, elapsed_time: 0.653697
+2024-09-03 17:52:26,265 - INFO - epoch: 0, itr: 47, nll_tr: 4048362.000000, x_tr_loss: 277155.875000, a_tr_loss: 0.081309, r_tr_loss: 0.005226, elapsed_time: 0.674905
+2024-09-03 17:52:26,923 - INFO - epoch: 0, itr: 48, nll_tr: 4087320.250000, x_tr_loss: 277154.343750, a_tr_loss: 0.079697, r_tr_loss: 0.005231, elapsed_time: 0.656633
+2024-09-03 17:52:27,587 - INFO - epoch: 0, itr: 49, nll_tr: 4292746.000000, x_tr_loss: 277153.281250, a_tr_loss: 0.081193, r_tr_loss: 0.005352, elapsed_time: 0.664173
+2024-09-03 17:52:28,269 - INFO - epoch: 0, itr: 50, nll_tr: 4155195.000000, x_tr_loss: 277152.968750, a_tr_loss: 0.080636, r_tr_loss: 0.005316, elapsed_time: 0.680895
+2024-09-03 17:52:29,000 - INFO - epoch: 0, itr: 51, nll_tr: 4045881.500000, x_tr_loss: 277153.250000, a_tr_loss: 0.079842, r_tr_loss: 0.005214, elapsed_time: 0.731459
+2024-09-03 17:52:29,746 - INFO - epoch: 0, itr: 52, nll_tr: 3994488.250000, x_tr_loss: 277151.093750, a_tr_loss: 0.080041, r_tr_loss: 0.005297, elapsed_time: 0.746094
+2024-09-03 17:52:30,433 - INFO - epoch: 0, itr: 53, nll_tr: 3877015.500000, x_tr_loss: 277149.812500, a_tr_loss: 0.076865, r_tr_loss: 0.005509, elapsed_time: 0.686290
+2024-09-03 17:52:31,164 - INFO - epoch: 0, itr: 54, nll_tr: 4116844.250000, x_tr_loss: 277149.687500, a_tr_loss: 0.077798, r_tr_loss: 0.005302, elapsed_time: 0.730837
+2024-09-03 17:52:31,952 - INFO - epoch: 0, itr: 55, nll_tr: 3990534.000000, x_tr_loss: 277149.437500, a_tr_loss: 0.073672, r_tr_loss: 0.005497, elapsed_time: 0.787802

@@ -1,0 +1,27 @@
+2024-09-03 17:58:24,854 - INFO - Training started
+2024-09-03 17:58:24,865 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\framework\op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+2024-09-03 17:58:29,353 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\ops\math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.cast instead.
+2024-09-03 17:58:34,265 - INFO - Initializing variables...
+2024-09-03 17:58:35,694 - INFO - Variables initialized
+2024-09-03 17:58:35,695 - INFO - Starting epoch 0
+2024-09-03 17:58:55,376 - INFO - Training started
+2024-09-03 17:58:55,385 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\framework\op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+2024-09-03 17:58:59,683 - WARNING - From C:\Users\aymen\miniconda3\envs\mm\lib\site-packages\tensorflow\python\ops\math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.cast instead.
+2024-09-03 17:59:04,542 - INFO - Initializing variables...
+2024-09-03 17:59:05,860 - INFO - Variables initialized
+2024-09-03 17:59:05,861 - INFO - Starting epoch 0
+2024-09-03 17:59:14,811 - INFO - epoch: 0, itr: 0, nll_tr: 5543618.500000, x_tr_loss: 277157.843750, a_tr_loss: 0.119169, r_tr_loss: 0.006838, elapsed_time: 8.948001
+2024-09-03 17:59:15,718 - INFO - epoch: 0, itr: 1, nll_tr: 4906077.500000, x_tr_loss: 277157.500000, a_tr_loss: 0.114068, r_tr_loss: 0.006441, elapsed_time: 0.906821
+2024-09-03 17:59:16,619 - INFO - epoch: 0, itr: 2, nll_tr: 5261200.000000, x_tr_loss: 277156.343750, a_tr_loss: 0.119854, r_tr_loss: 0.006889, elapsed_time: 0.899384
+2024-09-03 17:59:17,515 - INFO - epoch: 0, itr: 3, nll_tr: 4992525.000000, x_tr_loss: 277155.218750, a_tr_loss: 0.112481, r_tr_loss: 0.006497, elapsed_time: 0.896221
+2024-09-03 17:59:18,366 - INFO - epoch: 0, itr: 4, nll_tr: 4758572.500000, x_tr_loss: 277155.468750, a_tr_loss: 0.107249, r_tr_loss: 0.006605, elapsed_time: 0.850494
+2024-09-03 17:59:19,216 - INFO - epoch: 0, itr: 5, nll_tr: 5142039.500000, x_tr_loss: 277155.406250, a_tr_loss: 0.109581, r_tr_loss: 0.006293, elapsed_time: 0.849035
+2024-09-03 17:59:20,056 - INFO - epoch: 0, itr: 6, nll_tr: 4827087.000000, x_tr_loss: 277154.156250, a_tr_loss: 0.105115, r_tr_loss: 0.006491, elapsed_time: 0.840615

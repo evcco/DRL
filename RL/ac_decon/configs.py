@@ -15,9 +15,9 @@ model_config = OrderedDict()
 
 model_config['work_dir'] = './training_results'
 model_config['data_dir'] = './dataset'
-model_config['training_data'] = './mnist_training_data.npz'
-model_config['validation_data'] = './mnist_validation_data.npz'
-model_config['testing_data'] = './mnist_testing_data.npz'
+model_config['training_data'] = './mnist_training_data_1.npz'
+model_config['validation_data'] = './mnist_validation_data_1.npz'
+model_config['testing_data'] = './mnist_testing_data_1.npz'
 model_config['model_checkpoint'] = './training_results/model_checkpoints/model_decon_uBernoulli'
 model_config['policy_checkpoint'] = './training_results/policy_checkpoints/policy_decon'
 
@@ -72,6 +72,13 @@ model_config['anneal'] = 1
 
 model_config['work_dir'] = './training_results'
 model_config['data_dir'] = '/scratch/cl641/CausalRL/bcdr_beta/data_prep'
+model_config['qzgz_net_layers'] = [1]  # Define the layers here
+model_config['qzgz_mu_net_layers'] = []  # This should also be defined if used
+model_config['qzgz_mu_outlayers'] = [[model_config['z_dim'], None]]  # Define the output layers
+
+# You should also check and define other related keys if they are used in your model:
+model_config['qzgz_sigma_net_layers'] = []  # Example
+model_config['qzgz_sigma_net_outlayers'] = [[model_config['z_dim'], tf.nn.softplus]]  # Example
 
 model_config['pxgz_net_layers'] = [100, 100]
 model_config['pxgz_net_outlayers'] = []
